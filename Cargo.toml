@@ -1,0 +1,15 @@
+[package]
+name = "spidey"
+version = "0.1.0"
+authors = ["Kdwk <kdwkleung@proton.me>"]
+edition = "2021"
+publish = false
+
+[profile.release]
+lto = true
+
+[dependencies]
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+relm4 = { version = "0.6.0", features = ["libadwaita", "gnome_44"] }
