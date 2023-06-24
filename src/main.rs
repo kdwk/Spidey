@@ -1,14 +1,16 @@
 #[rustfmt::skip]
 mod config;
 mod app;
-mod modals;
 mod setup;
 
-use gtk::prelude::ApplicationExt;
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
     gtk, main_application, RelmApp,
 };
+use relm4::gtk::{prelude::*, Box, Label, Button, Orientation, Align, Video, Entry, InputHints, InputPurpose, EntryBuffer, ScrolledWindow};
+use relm4::adw::{prelude::*, Window, HeaderBar, MessageDialog, ViewStack, StatusPage};
+use relm4::{prelude::{*, FactoryComponent}, factory::FactoryVecDeque};
+use relm4_macros::*;
 
 use app::App;
 use setup::setup;
@@ -42,6 +44,8 @@ fn main() {
     app.set_accelerators_for_action::<QuitAction>(&["<Control>q"]);
 
     let app = RelmApp::from_app(app);
+
+    relm4_icons::initialize_icons();
 
     app.run::<App>(());
 }
