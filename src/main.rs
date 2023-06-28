@@ -3,13 +3,19 @@ mod config;
 mod app;
 mod setup;
 
+use relm4::adw::{prelude::*, HeaderBar, MessageDialog, StatusPage, ViewStack, Window};
+use relm4::gtk::{
+    prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
+    Orientation, ScrolledWindow, Video,
+};
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
     gtk, main_application, RelmApp,
 };
-use relm4::gtk::{prelude::*, Box, Label, Button, Orientation, Align, Video, Entry, InputHints, InputPurpose, EntryBuffer, ScrolledWindow};
-use relm4::adw::{prelude::*, Window, HeaderBar, MessageDialog, ViewStack, StatusPage};
-use relm4::{prelude::{*, FactoryComponent}, factory::FactoryVecDeque};
+use relm4::{
+    factory::FactoryVecDeque,
+    prelude::{FactoryComponent, *},
+};
 use relm4_macros::*;
 
 use app::App;

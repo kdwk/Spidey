@@ -1,52 +1,57 @@
 {
-    "id": "com.github.kdwk.Spidey.Devel",
-    "runtime": "org.gnome.Platform",
-    "runtime-version": "44",
-    "sdk": "org.gnome.Sdk",
-    "sdk-extensions": [
+    "id" : "com.github.kdwk.Spidey.Devel",
+    "runtime" : "org.gnome.Platform",
+    "runtime-version" : "master",
+    "sdk" : "org.gnome.Sdk",
+    "sdk-extensions" : [
         "org.freedesktop.Sdk.Extension.rust-stable",
         "org.freedesktop.Sdk.Extension.llvm15"
     ],
-    "command": "spidey",
-    "finish-args": [
+    "command" : "spidey",
+    "finish-args" : [
         "--share=ipc",
+        "--share=network",
         "--socket=fallback-x11",
         "--socket=wayland",
+        "--socket=pulseaudio",
+        "--socket=cups",
         "--device=dri",
         "--env=RUST_LOG=spidey=debug",
         "--env=G_MESSAGES_DEBUG=none",
-        "--env=RUST_BACKTRACE=1"
+        "--env=RUST_BACKTRACE=1",
+        "--env=GST_PLUGIN_FEATURE_RANK=vah264dec:MAX,vah265dec:MAX,vampeg2dec:MAX,vavp8dec:MAX,vavp9dec:MAX,vajpegdec:MAX",
+        "--env=WEBKIT_GST_DMABUF_SINK_ENABLED=1"
     ],
-    "build-options": {
-        "append-path": "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm15/bin",
-        "prepend-ld-library-path": "/usr/lib/sdk/llvm15/lib",
-        "build-args": [
+    "build-options" : {
+        "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm15/bin",
+        "prepend-ld-library-path" : "/usr/lib/sdk/llvm15/lib",
+        "build-args" : [
             "--share=network"
         ],
-        "env": {
-            "CARGO_REGISTRIES_CRATES_IO_PROTOCOL": "sparse",
-            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER": "clang",
-            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS": "-C link-arg=-fuse-ld=/usr/lib/sdk/rust-stable/bin/mold",
-            "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER": "clang",
-            "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS": "-C link-arg=-fuse-ld=/usr/lib/sdk/rust-stable/bin/mold"
+        "env" : {
+            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER" : "clang",
+            "CARGO_REGISTRIES_CRATES_IO_PROTOCOL" : "sparse",
+            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS" : "-C link-arg=-fuse-ld=/usr/lib/sdk/rust-stable/bin/mold",
+            "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER" : "clang",
+            "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS" : "-C link-arg=-fuse-ld=/usr/lib/sdk/rust-stable/bin/mold"
         },
-        "test-args": [
+        "test-args" : [
             "--socket=x11",
             "--share=network"
         ]
     },
-    "modules": [
+    "modules" : [
         {
-            "name": "spidey",
-            "buildsystem": "meson",
-            "run-tests": true,
-            "config-opts": [
+            "name" : "spidey",
+            "buildsystem" : "meson",
+            "run-tests" : true,
+            "config-opts" : [
                 "-Dprofile=development"
             ],
-            "sources": [
+            "sources" : [
                 {
-                    "type": "dir",
-                    "path": "../"
+                    "type" : "dir",
+                    "path" : "../"
                 }
             ]
         }

@@ -1,10 +1,18 @@
-use relm4::gtk::{prelude::*, Box, Label, Button, Orientation, Align, Video, Entry, InputHints, InputPurpose, EntryBuffer, ScrolledWindow};
-use relm4::adw::{prelude::*, Window, HeaderBar, MessageDialog, ViewStack, StatusPage, Toast, ToastOverlay};
-use relm4::{prelude::{*, FactoryComponent}, factory::FactoryVecDeque};
-use relm4_macros::*;
-use webkit6::{WebView, prelude::*};
-use url::{Url};
 use pango::EllipsizeMode;
+use relm4::adw::{
+    prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
+};
+use relm4::gtk::{
+    prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
+    Orientation, ScrolledWindow, Video,
+};
+use relm4::{
+    factory::FactoryVecDeque,
+    prelude::{FactoryComponent, *},
+};
+use relm4_macros::*;
+use url::Url;
+use webkit6::{prelude::*, WebView};
 
 use crate::config::{APP_ID, PROFILE};
 
@@ -39,7 +47,7 @@ impl SimpleComponent for WebWindow {
             ToastOverlay {
                 Box {
                     set_orientation: Orientation::Vertical,
-                    
+
                     #[name(web_view)]
                     WebView {
                         set_vexpand: true,
@@ -60,13 +68,16 @@ impl SimpleComponent for WebWindow {
     }
 
     fn init(
-            init: Self::Init,
-            root: &Self::Root,
-            sender: ComponentSender<Self>,
-        ) -> ComponentParts<Self> {
+        init: Self::Init,
+        root: &Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
         let model = WebWindow { url: init };
         let widgets = view_output!();
-        ComponentParts { model: model, widgets: widgets }
+        ComponentParts {
+            model: model,
+            widgets: widgets,
+        }
     }
 
     // fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
@@ -85,7 +96,7 @@ impl SimpleComponent for WebWindow {
 pub struct WebWindowControlBar {
     id: DynamicIndex,
     url: String,
-    webwindow: Controller<WebWindow>
+    webwindow: Controller<WebWindow>,
 }
 
 pub type WebWindowControlBarInit = String;
@@ -96,7 +107,7 @@ pub enum WebWindowControlBarInput {
     Forward,
     Close,
     Refresh,
-    Focus
+    Focus,
 }
 
 #[derive(Debug)]
@@ -119,7 +130,7 @@ impl FactoryComponent for WebWindowControlBar {
             set_orientation: Orientation::Horizontal,
             set_spacing: 0,
             set_margin_all: 5,
-            
+
             #[name(back_btn)]
             Button {
                 add_css_class: "circular",
@@ -155,7 +166,7 @@ impl FactoryComponent for WebWindowControlBar {
                 set_ellipsize: EllipsizeMode::End,
                 set_label: &self.url,
             },
-            
+
             Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
@@ -181,7 +192,7 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarInput::Close => {
                 self.webwindow.widgets().web_window.destroy();
                 sender.output(WebWindowControlBarOutput::Remove(self.id.clone()));
-            },
+            }
             WebWindowControlBarInput::Back => self.webwindow.widgets().web_view.go_back(),
             WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
             WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
@@ -190,22 +201,25 @@ impl FactoryComponent for WebWindowControlBar {
     }
 
     fn init_model(init: Self::Init, index: &Self::Index, sender: FactorySender<Self>) -> Self {
-        let new_webwindow = WebWindow::builder().launch(init.clone()).forward(sender.input_sender(), |message| match message {
-            WebWindowOutput::Close => WebWindowControlBarInput::Close,
-        });
-        Self { id: index.clone(), url: init, webwindow: new_webwindow }
+        let new_webwindow =
+            WebWindow::builder()
+                .launch(init.clone())
+                .forward(sender.input_sender(), |message| match message {
+                    WebWindowOutput::Close => WebWindowControlBarInput::Close,
+                });
+        Self {
+            id: index.clone(),
+            url: init,
+            webwindow: new_webwindow,
+        }
     }
 
     fn forward_to_parent(_output: Self::Output) -> Option<Self::ParentInput> {
-        Some( match _output {
-            WebWindowControlBarOutput::Remove(id) => AppInput::RemoveWebWindowControlBar(id)
+        Some(match _output {
+            WebWindowControlBarOutput::Remove(id) => AppInput::RemoveWebWindowControlBar(id),
         })
     }
 }
-
-
-
-
 
 pub(super) struct App {
     url_entry_buffer: EntryBuffer,
@@ -239,7 +253,7 @@ impl SimpleComponent for App {
 
             Box {
                 set_orientation: Orientation::Vertical,
-    
+
                 HeaderBar {
                     set_decoration_layout: Some(":close"),
                     add_css_class: "flat",
@@ -291,17 +305,17 @@ impl SimpleComponent for App {
                             set_orientation: Orientation::Horizontal,
                             set_hexpand: true,
                             set_halign: Align::Fill,
-    
+
                             Box {
                                 set_orientation: Orientation::Vertical,
-    
+
                                 #[local_ref]
                                 webwindowcontrolbar_box -> Box {
                                     set_orientation: Orientation::Vertical,
                                     set_spacing: 0,
                                 }
                             }
-    
+
                         }
                     }
                 }
@@ -310,22 +324,30 @@ impl SimpleComponent for App {
     }
 
     fn init(
-            init: Self::Init,
-            root: &Self::Root,
-            sender: ComponentSender<Self>,
-        ) -> ComponentParts<Self> {
+        init: Self::Init,
+        root: &Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
         let webwindowcontrolbars = FactoryVecDeque::new(gtk::Box::default(), sender.input_sender());
-        let model = App { webwindowcontrolbars: webwindowcontrolbars, url_entry_buffer: EntryBuffer::default(), entry_is_valid: None };
+        let model = App {
+            webwindowcontrolbars: webwindowcontrolbars,
+            url_entry_buffer: EntryBuffer::default(),
+            entry_is_valid: None,
+        };
         let webwindowcontrolbar_box = model.webwindowcontrolbars.widget();
         let widgets = view_output!();
-        ComponentParts { model: model, widgets: widgets }
+        ComponentParts {
+            model: model,
+            widgets: widgets,
+        }
     }
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             AppInput::EntryChanged => {
                 if !self.url_entry_buffer.text().is_empty() {
-                    let url_processed_result = process_url(String::from(self.url_entry_buffer.text()));
+                    let url_processed_result =
+                        process_url(String::from(self.url_entry_buffer.text()));
                     match url_processed_result {
                         Ok(_) => self.entry_is_valid = Some(true),
                         Err(_) => self.entry_is_valid = Some(false),
@@ -342,10 +364,10 @@ impl SimpleComponent for App {
                         self.webwindowcontrolbars.guard().push_back(final_url);
                         self.url_entry_buffer = EntryBuffer::default();
                         self.entry_is_valid = None;
-                    },
-                    None => {},
+                    }
+                    None => {}
                 }
-            },
+            }
 
             AppInput::RemoveWebWindowControlBar(id) => {
                 self.webwindowcontrolbars.guard().remove(id.current_index());
@@ -354,7 +376,7 @@ impl SimpleComponent for App {
     }
 }
 
-fn process_url (mut url: String) -> Result<String, ()> {
+fn process_url(mut url: String) -> Result<String, ()> {
     if url.contains(" ") {
         url = String::from(url.trim());
         url = url.replace(" ", "+");
@@ -366,11 +388,7 @@ fn process_url (mut url: String) -> Result<String, ()> {
     }
     let result = Url::parse(url.as_str());
     match result {
-        Ok(final_url) => {
-            Ok(final_url.into_string())
-        },
-        Err(error) => {
-            Err(())
-        }
+        Ok(final_url) => Ok(final_url.into_string()),
+        Err(error) => Err(()),
     }
 }
