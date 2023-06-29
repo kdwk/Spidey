@@ -12,7 +12,7 @@ use relm4::{
 };
 use relm4_macros::*;
 use url::Url;
-use webkit6::{prelude::*, WebView, Settings};
+use webkit6::{prelude::*, Settings, WebView};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
@@ -75,8 +75,11 @@ impl SimpleComponent for WebWindow {
     ) -> ComponentParts<Self> {
         let model = WebWindow { url: init };
         let widgets = view_output!();
-        let web_view_settings: Settings = webkit_web_view_get_settings(widgets.web_view);
-        web_view_settings.set_enable_developer_extras(true);
+        let web_view_settings: Settings = Settings::new();
+        if PROFILE == "Devel" {
+            web_view_settings.set_enable_developer_extras(true);
+            widgets.web_view.set_settings(&web_view_settings);
+        }
         ComponentParts {
             model: model,
             widgets: widgets,
