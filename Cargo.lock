@@ -1191,6 +1191,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "webkit6",
+ "webkit6-sys",
 ]
 
 [[package]]
