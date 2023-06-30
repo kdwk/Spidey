@@ -19,8 +19,7 @@
         "--env=RUST_LOG=spidey=debug",
         "--env=G_MESSAGES_DEBUG=none",
         "--env=RUST_BACKTRACE=1",
-        "--env=GST_PLUGIN_FEATURE_RANK=vah264dec:MAX,vah265dec:MAX,vampeg2dec:MAX,vavp8dec:MAX,vavp9dec:MAX,vajpegdec:MAX",
-        "--env=WEBKIT_GST_DMABUF_SINK_ENABLED=1"
+        "--env=GST_PLUGIN_FEATURE_RANK=vah264dec:MAX,vah265dec:MAX,vampeg2dec:MAX,vavp8dec:MAX,vavp9dec:MAX,vajpegdec:MAX"
     ],
     "build-options" : {
         "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm15/bin",

@@ -12,7 +12,7 @@ use relm4::{
 };
 use relm4_macros::*;
 use url::Url;
-use webkit6::{prelude::*, Settings, WebView};
+use webkit6::{prelude::*, Settings, WebView, NavigationAction};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
@@ -53,7 +53,6 @@ impl SimpleComponent for WebWindow {
                     WebView {
                         set_vexpand: true,
                         load_uri: model.url.as_str(),
-                        // connect_create => WebWindowInput::NewSmallWindow,
                         // connect_insecure_content_detected => WebWindowInput::WarnInsecure,
                     }
                 }
@@ -76,6 +75,7 @@ impl SimpleComponent for WebWindow {
         let model = WebWindow { url: init };
         let widgets = view_output!();
         let web_view_settings: Settings = Settings::new();
+        web_view_settings.set_media_playback_requires_user_gesture(true);
         if PROFILE == "Devel" {
             web_view_settings.set_enable_developer_extras(true);
             widgets.web_view.set_settings(&web_view_settings);
@@ -389,7 +389,7 @@ fn process_url(mut url: String) -> Result<String, ()> {
         let mut search = String::from("https://duckduckgo.com/?q=");
         search.push_str(url.as_str());
         url = search;
-    } else if !(url.starts_with("http://") || url.starts_with("https://")) {
+    } else if !(url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://")) {
         url = String::from("https://") + url.as_str();
     }
     let result = Url::parse(url.as_str());
