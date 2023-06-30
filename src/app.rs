@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 use pango::EllipsizeMode;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
@@ -12,7 +14,7 @@ use relm4::{
 };
 use relm4_macros::*;
 use url::Url;
-use webkit6::{prelude::*, Settings, WebView, NavigationAction};
+use webkit6::{prelude::*, NavigationAction, Settings, WebView};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
@@ -389,7 +391,10 @@ fn process_url(mut url: String) -> Result<String, ()> {
         let mut search = String::from("https://duckduckgo.com/?q=");
         search.push_str(url.as_str());
         url = search;
-    } else if !(url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://")) {
+    } else if !(url.starts_with("http://")
+        || url.starts_with("https://")
+        || url.starts_with("webkit://"))
+    {
         url = String::from("https://") + url.as_str();
     }
     let result = Url::parse(url.as_str());
