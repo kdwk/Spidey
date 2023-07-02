@@ -3,11 +3,6 @@ mod config;
 mod app;
 mod setup;
 
-use relm4::adw::{prelude::*, HeaderBar, MessageDialog, StatusPage, ViewStack, Window};
-use relm4::gtk::{
-    prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
-    Orientation, ScrolledWindow, Video,
-};
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
     gtk, main_application, RelmApp,
