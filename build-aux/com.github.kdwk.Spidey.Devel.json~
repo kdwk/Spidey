@@ -1,7 +1,7 @@
 {
     "id" : "com.github.kdwk.Spidey.Devel",
-    "runtime" : "org.gnome.Sdk",
-    "runtime-version" : "master",
+    "runtime" : "org.webkit.Platform",
+    "runtime-version" : "22.08",
     "sdk" : "org.gnome.Sdk",
     "sdk-extensions" : [
         "org.freedesktop.Sdk.Extension.rust-stable",

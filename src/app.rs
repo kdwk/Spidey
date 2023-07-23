@@ -19,14 +19,62 @@ use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
 
+// pub struct SmallWebWindow {
+//     pub web_view_option: Option<WebView>,
+// }
+
+// pub enum SmallWebWindowOutput {
+//     CloseSmallWebWindow
+// }
+
+// #[relm4::component(pub)]
+// impl SimpleComponent for SmallWebWindow {
+//     type Init = Option<WebView>;
+//     type Input = ();
+//     type Output = ();
+
+//     view! {
+//         #[name(small_web_window)]
+//         Window {
+//             set_default_height: 500,
+//             set_default_width: 300,
+
+//             Box {
+//                 set_orientation: Orientation::Vertical,
+
+//                 HeaderBar {
+//                     set_decoration_layout: Some(":close"),
+//                     add_css_class: "raised"
+//                 },
+
+//                 model.web_view_option.unwrap_or("Cannot find WebView").widgets(),
+//             }
+//         }
+//     }
+
+//     fn init(
+//             init: Self::Init,
+//             root: &Self::Root,
+//             sender: ComponentSender<Self>,
+//         ) -> ComponentParts<Self> {
+//         let model = SmallWebWindow { web_view_option: init };
+//         let widgets = view_output!();
+//         ComponentParts { model: model, widgets: widgets }
+//     }
+
+//     fn shutdown(&mut self, widgets: &mut Self::Widgets, output: relm4::Sender<Self::Output>) {
+//         widgets.small_web_window.destroy();
+//     }
+// }
+
 pub struct WebWindow {
     pub url: String,
+    // small_web_window_option: Option<SmallWebWindow>
 }
 
 #[derive(Debug)]
 pub enum WebWindowInput {
-    // NewSmallWindow,
-    // WarnInsecure,
+    CloseSmallWebWindow
 }
 
 #[derive(Debug)]
@@ -55,7 +103,19 @@ impl SimpleComponent for WebWindow {
                     WebView {
                         set_vexpand: true,
                         load_uri: model.url.as_str(),
-                        // connect_insecure_content_detected => WebWindowInput::WarnInsecure,
+                        connect_create[sender] => |a, b| {
+                            println!("{:?}", a);
+                            println!("{:?}", b);
+                            let c: WebView = WebView::new();
+                            c.into()
+                            // let model.small_web_window_option = Some(SmallWebWindow::builder()
+                            //                                                         .transient_for(root)
+                            //                                                         .launch(Some(a_web_view))
+                            //                                                         .forward(sender.input_sender(), |message| match message {
+                            //                                                             SmallWebWindow::CloseSmallWebWindow => WebWindow::CloseSmallWebWindow,
+                            //                                                         }));
+                            // model.small_web_window_option.unwrap_or("Could not create SmallWebWindow").into()
+                        },
                     }
                 }
             },
@@ -81,6 +141,8 @@ impl SimpleComponent for WebWindow {
         if PROFILE == "Devel" {
             web_view_settings.set_enable_developer_extras(true);
             widgets.web_view.set_settings(&web_view_settings);
+        } else {
+            widgets.web_view.set_settings(&web_view_settings);
         }
         ComponentParts {
             model: model,
@@ -90,9 +152,7 @@ impl SimpleComponent for WebWindow {
 
     // fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
     //     match message {
-    //         WebWindowInput::Close => {
-    //             todo!() // TODO: NEED TO MESSAGE WEBWINDOWCONTROLBAR
-    //         }
+    //         WebWindowInput::CloseSmallWebWindow => self.small_web_window_option = None,
     //     }
     // }
 
@@ -175,6 +235,7 @@ impl FactoryComponent for WebWindowControlBar {
                 set_label: &self.url,
             },
 
+            #[name(focus_btn)]
             Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
@@ -184,6 +245,7 @@ impl FactoryComponent for WebWindowControlBar {
                 connect_clicked => WebWindowControlBarInput::Focus,
             },
 
+            #[name(close_btn)]
             Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
@@ -385,7 +447,7 @@ impl SimpleComponent for App {
 }
 
 fn process_url(mut url: String) -> Result<String, ()> {
-    if url.contains(" ") {
+    if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
         url = url.replace(" ", "+");
         let mut search = String::from("https://duckduckgo.com/?q=");

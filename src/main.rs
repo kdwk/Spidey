@@ -5,7 +5,8 @@ mod setup;
 
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
-    gtk::prelude::*, main_application, RelmApp
+    gtk::prelude::*,
+    main_application, RelmApp,
 };
 use relm4::{
     factory::FactoryVecDeque,
