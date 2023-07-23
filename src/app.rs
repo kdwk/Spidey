@@ -74,7 +74,7 @@ pub struct WebWindow {
 
 #[derive(Debug)]
 pub enum WebWindowInput {
-    CloseSmallWebWindow
+    CloseSmallWebWindow,
 }
 
 #[derive(Debug)]
