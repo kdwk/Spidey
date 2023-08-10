@@ -18,5 +18,5 @@ webkit6-sys = "0.1.0"
 url = "2.4.0"
 pango = "0.17.4"
 relm4-components = "0.6.0"
-relm4-macros = "0.6.0"
+relm4-macros = "0.6.1"
 relm4-icons = {version="0.6.0", features=["plus","minus","up","down","top","rich-text","edit","share","cat-sleeping", "call-missed", "left", "right", "cross", "refresh","multitasking-windows"]}
