@@ -1034,9 +1034,9 @@ dependencies = [
 
 [[package]]
 name = "relm4-macros"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "848a6e1b4954b7aa8155d4a234516d46ed543a614666adc1ea73a922bc841e2a"
+checksum = "8ad8d946cf33654b1df3e2e7d1c4952a154f008368cdda03a99c1840a6fcab3b"
 dependencies = [
  "proc-macro2",
  "quote",
