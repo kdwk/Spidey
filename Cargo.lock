@@ -1013,9 +1013,9 @@ dependencies = [
 
 [[package]]
 name = "relm4-components"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29a7265580b2a185254b9f129bff5fdca11a00730a6e075628c93502a4eced81"
+checksum = "edd02dd4c31b952cedb6f3ef200438963b1c4b7889f2ce760c607a1dc7f513e3"
 dependencies = [
  "once_cell",
  "relm4",
