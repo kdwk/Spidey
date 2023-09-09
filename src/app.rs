@@ -1,12 +1,13 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use pango::EllipsizeMode;
+use relm4::adw::ffi::ADW_TAB_VIEW_SHORTCUT_ALT_DIGITS;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
 };
 use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
-    Orientation, ScrolledWindow, Video,
+    Orientation, ScrolledWindow, Video, Overlay, WindowControls, PackType,
 };
 use relm4::{
     factory::FactoryVecDeque,
@@ -19,61 +20,52 @@ use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
 
-// pub struct SmallWebWindow {
-//     pub web_view_option: Option<WebView>,
-// }
+pub struct SmallWebWindow {
+    web_view: WebView,
+}
 
-// pub enum SmallWebWindowOutput {
-//     CloseSmallWebWindow
-// }
+#[derive(Debug)]
+pub enum SmallWebWindowOutput {
+    Close
+}
 
-// #[relm4::component(pub)]
-// impl SimpleComponent for SmallWebWindow {
-//     type Init = Option<WebView>;
-//     type Input = ();
-//     type Output = ();
+#[relm4::component(pub)]
+impl SimpleComponent for SmallWebWindow {
+    type Init = WebView;
+    type Input = ();
+    type Output = SmallWebWindowOutput;
 
-//     view! {
-//         #[name(small_web_window)]
-//         Window {
-//             set_default_height: 500,
-//             set_default_width: 300,
+    view! {
+        Window {
+            set_default_height: 400,
+            set_default_width: 400,
 
-//             Box {
-//                 set_orientation: Orientation::Vertical,
+            Box {
+                set_orientation: Orientation::Vertical,
+                
+                HeaderBar {
+                    set_decoration_layout: Some(":close"),
+                    add_css_class: "raised",
+                },
 
-//                 HeaderBar {
-//                     set_decoration_layout: Some(":close"),
-//                     add_css_class: "raised"
-//                 },
+                model.web_view.widget(),
+            },
 
-//                 model.web_view_option.unwrap_or("Cannot find WebView").widgets(),
-//             }
-//         }
-//     }
-
-//     fn init(
-//             init: Self::Init,
-//             root: &Self::Root,
-//             sender: ComponentSender<Self>,
-//         ) -> ComponentParts<Self> {
-//         let model = SmallWebWindow { web_view_option: init };
-//         let widgets = view_output!();
-//         ComponentParts { model: model, widgets: widgets }
-//     }
-
-//     fn shutdown(&mut self, widgets: &mut Self::Widgets, output: relm4::Sender<Self::Output>) {
-//         widgets.small_web_window.destroy();
-//     }
-// }
+            connect_close_request[sender] => move |_| {
+                sender.output(SmallWebWindowOutput::Close)
+            }
+        }
+    }
+}
 
 pub struct WebWindow {
     pub url: String,
-    // small_web_window_option: Option<SmallWebWindow>
+    small_web_window_option: Option<Controller<SmallWebWindow>>
 }
 
 #[derive(Debug)]
 pub enum WebWindowInput {
+    CreateSmallWebWindow(WebView),
     CloseSmallWebWindow,
 }
 
@@ -87,35 +79,52 @@ impl SimpleComponent for WebWindow {
     type Init = String;
     type Input = WebWindowInput;
     type Output = WebWindowOutput;
+    type Root = Window;
 
     view! {
         #[name(web_window)]
+        #[root]
         Window {
             set_default_height: 1000,
             set_default_width: 1000,
 
-            #[name(toast_overlay)]
-            ToastOverlay {
-                Box {
-                    set_orientation: Orientation::Vertical,
-
-                    #[name(web_view)]
-                    WebView {
-                        set_vexpand: true,
-                        load_uri: model.url.as_str(),
-                        connect_create[sender] => |a, b| {
-                            println!("{:?}", a);
-                            println!("{:?}", b);
-                            let c: WebView = WebView::new();
-                            c.into()
-                            // let model.small_web_window_option = Some(SmallWebWindow::builder()
-                            //                                                         .transient_for(root)
-                            //                                                         .launch(Some(a_web_view))
-                            //                                                         .forward(sender.input_sender(), |message| match message {
-                            //                                                             SmallWebWindow::CloseSmallWebWindow => WebWindow::CloseSmallWebWindow,
-                            //                                                         }));
-                            // model.small_web_window_option.unwrap_or("Could not create SmallWebWindow").into()
-                        },
+            Overlay {
+                add_overlay = &WindowControls {
+                    set_halign: Align::End,
+                    set_valign: Align::Start,
+                    set_side: PackType::End,
+                },
+                #[name(toast_overlay)]
+                ToastOverlay {
+                    Box {
+                        set_orientation: Orientation::Vertical,
+    
+                        #[name(web_view)]
+                        WebView {
+                            set_vexpand: true,
+                            load_uri: model.url.as_str(),
+                            connect_create[sender] => |this_webview, _navigation_action| {
+                                let new_webview = WebView::new();
+                                new_webview.set_property("related-view", this_webview);
+                                new_webview.connect_ready_to_show(|_| {
+                                    sender.input(WebWindowInput::CreateSmallWebWindow(new_webview.clone()));
+                                });
+                                new_webview.into()
+                                // let new_webwindow = Window::builder().set_child(a).detach();
+                                // new_webwindow
+                                // new_webwindow.web_view.clone().into()
+                                // let c: WebView = WebView::new();
+                                // c.load_uri(a.uri());
+                                // c.into()
+                                // let model.small_web_window_option = Some(SmallWebWindow::builder()
+                                //                                                         .transient_for(root)
+                                //                                                         .launch(Some(a_web_view))
+                                //                                                         .forward(sender.input_sender(), |message| match message {
+                                //                                                             SmallWebWindow::CloseSmallWebWindow => WebWindow::CloseSmallWebWindow,
+                                //                                                         }));
+                                // model.small_web_window_option.unwrap_or("Could not create SmallWebWindow").into()
+                            },
+                        }
                     }
                 }
             },
@@ -134,14 +143,14 @@ impl SimpleComponent for WebWindow {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = WebWindow { url: init };
+        let model = WebWindow { url: init, small_web_window_option: None };
         let widgets = view_output!();
         let web_view_settings: Settings = Settings::new();
         web_view_settings.set_media_playback_requires_user_gesture(true);
         if PROFILE == "Devel" {
             web_view_settings.set_enable_developer_extras(true);
             widgets.web_view.set_settings(&web_view_settings);
-        } else {
+            } else {
             widgets.web_view.set_settings(&web_view_settings);
         }
         ComponentParts {
@@ -150,11 +159,19 @@ impl SimpleComponent for WebWindow {
         }
     }
 
-    // fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
-    //     match message {
-    //         WebWindowInput::CloseSmallWebWindow => self.small_web_window_option = None,
-    //     }
-    // }
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+        match message {
+            WebWindowInput::CreateSmallWebWindow(new_webview) => {
+                self.small_web_window_option = Some(SmallWebWindow::builder()
+                                                                    .transient_for(root)
+                                                                    .launch(new_webview)
+                                                                    .forward(sender.input_sender(), |message| match message {
+                                                                        SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,
+                                                                    }));
+            }
+            WebWindowInput::CloseSmallWebWindow => self.small_web_window_option = None,
+        }
+    }
 
     // fn shutdown(&mut self, widgets: &mut Self::Widgets, output: relm4::Sender<Self::Output>) {
     //     widgets.web_window.destroy();
@@ -330,7 +347,7 @@ impl SimpleComponent for App {
                 },
 
                 Box {
-                    set_orientation: gtk::Orientation::Vertical,
+                    set_orientation: Orientation::Vertical,
                     set_spacing: 3,
                     set_margin_all: 5,
 
@@ -447,6 +464,7 @@ impl SimpleComponent for App {
 }
 
 fn process_url(mut url: String) -> Result<String, ()> {
+/*
     if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
         url = url.replace(" ", "+");
@@ -459,9 +477,20 @@ fn process_url(mut url: String) -> Result<String, ()> {
     {
         url = String::from("https://") + url.as_str();
     }
+    */
+    if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {}
+    else if url.contains(" ") || !url.contains(".") {
+        url = String::from(url.trim());
+        url = url.replace(" ", "+");
+        let mut search = String::from("https://duckduckgo.com/?q=");
+        search.push_str(url.as_str());
+        url = search;
+    } else {
+        url = String::from("https://") + url.as_str();
+    }
     let result = Url::parse(url.as_str());
     match result {
-        Ok(final_url) => Ok(final_url.into_string()),
+        Ok(final_url) => Ok(String::from(url)),
         Err(error) => Err(()),
     }
 }
