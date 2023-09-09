@@ -56,6 +56,19 @@ impl SimpleComponent for SmallWebWindow {
             }
         }
     }
+
+    fn init(
+        init: Self::Init,
+        root: &Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
+        let model = SmallWebWindow { web_view: init };
+        let widgets = view_output!();
+        ComponentParts {
+            model: model,
+            widgets: widgets,
+        }
+    }
 }
 
 pub struct WebWindow {
@@ -79,7 +92,6 @@ impl SimpleComponent for WebWindow {
     type Init = String;
     type Input = WebWindowInput;
     type Output = WebWindowOutput;
-    type Root = Window;
 
     view! {
         #[name(web_window)]
