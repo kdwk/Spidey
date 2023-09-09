@@ -7,7 +7,7 @@ use relm4::adw::{
 };
 use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
-    Orientation, ScrolledWindow, Video, Overlay, WindowControls, PackType,
+    Orientation, Overlay, PackType, ScrolledWindow, Video, WindowControls,
 };
 use relm4::{
     factory::FactoryVecDeque,
@@ -26,7 +26,7 @@ pub struct SmallWebWindow {
 
 #[derive(Debug)]
 pub enum SmallWebWindowOutput {
-    Close
+    Close,
 }
 
 #[relm4::component(pub)]
@@ -42,7 +42,7 @@ impl SimpleComponent for SmallWebWindow {
 
             Box {
                 set_orientation: Orientation::Vertical,
-                
+
                 HeaderBar {
                     set_decoration_layout: Some(":close"),
                     add_css_class: "raised",
@@ -60,7 +60,7 @@ impl SimpleComponent for SmallWebWindow {
 
 pub struct WebWindow {
     pub url: String,
-    small_web_window_option: Option<Controller<SmallWebWindow>>
+    small_web_window_option: Option<Controller<SmallWebWindow>>,
 }
 
 #[derive(Debug)]
@@ -98,7 +98,7 @@ impl SimpleComponent for WebWindow {
                 ToastOverlay {
                     Box {
                         set_orientation: Orientation::Vertical,
-    
+
                         #[name(web_view)]
                         WebView {
                             set_vexpand: true,
@@ -143,14 +143,17 @@ impl SimpleComponent for WebWindow {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = WebWindow { url: init, small_web_window_option: None };
+        let model = WebWindow {
+            url: init,
+            small_web_window_option: None,
+        };
         let widgets = view_output!();
         let web_view_settings: Settings = Settings::new();
         web_view_settings.set_media_playback_requires_user_gesture(true);
         if PROFILE == "Devel" {
             web_view_settings.set_enable_developer_extras(true);
             widgets.web_view.set_settings(&web_view_settings);
-            } else {
+        } else {
             widgets.web_view.set_settings(&web_view_settings);
         }
         ComponentParts {
@@ -162,12 +165,14 @@ impl SimpleComponent for WebWindow {
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                self.small_web_window_option = Some(SmallWebWindow::builder()
-                                                                    .transient_for(root)
-                                                                    .launch(new_webview)
-                                                                    .forward(sender.input_sender(), |message| match message {
-                                                                        SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,
-                                                                    }));
+                self.small_web_window_option = Some(
+                    SmallWebWindow::builder()
+                        .transient_for(root)
+                        .launch(new_webview)
+                        .forward(sender.input_sender(), |message| match message {
+                            SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,
+                        }),
+                );
             }
             WebWindowInput::CloseSmallWebWindow => self.small_web_window_option = None,
         }
@@ -464,7 +469,7 @@ impl SimpleComponent for App {
 }
 
 fn process_url(mut url: String) -> Result<String, ()> {
-/*
+    /*
     if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
         url = url.replace(" ", "+");
@@ -478,8 +483,8 @@ fn process_url(mut url: String) -> Result<String, ()> {
         url = String::from("https://") + url.as_str();
     }
     */
-    if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {}
-    else if url.contains(" ") || !url.contains(".") {
+    if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {
+    } else if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
         url = url.replace(" ", "+");
         let mut search = String::from("https://duckduckgo.com/?q=");
