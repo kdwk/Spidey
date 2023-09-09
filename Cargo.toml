@@ -12,11 +12,11 @@ lto = true
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-relm4 = { version = "0.6.0", features = ["libadwaita", "gnome_44", "macros"] }
+relm4 = { version = "0.6.1", features = ["libadwaita", "gnome_44", "macros"] }
 webkit6 = "0.1.0"
 webkit6-sys = "0.1.0"
-url = "2.4.0"
+url = "2.4.1"
 pango = "0.17.4"
 relm4-components = "0.6.0"
-relm4-macros = "0.6.1"
+relm4-macros = "0.6.2"
 relm4-icons = {version="0.6.0", features=["plus","minus","up","down","top","rich-text","edit","share","cat-sleeping", "call-missed", "left", "right", "cross", "refresh","multitasking-windows"]}
