@@ -43,7 +43,7 @@ impl SimpleComponent for SmallWebWindow {
                     add_css_class: "raised",
                 },
 
-                model.web_view,
+                model.web_view.clone(),
             },
 
             connect_close_request[sender] => move |_| {
@@ -110,26 +110,15 @@ impl SimpleComponent for WebWindow {
                         WebView {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
-                            connect_create[sender] => |this_webview, _navigation_action| {
+                            connect_create[sender] => move |this_webview, _navigation_action| {
                                 let new_webview = WebView::new();
                                 new_webview.set_property("related-view", this_webview);
-                                new_webview.connect_ready_to_show(|_| {
-                                    sender.input(WebWindowInput::CreateSmallWebWindow(new_webview.clone()));
+                                let sender_clone = sender.clone();
+                                let new_webview_clone = new_webview.clone();
+                                new_webview.connect_ready_to_show(move |_| {
+                                    sender_clone.input(WebWindowInput::CreateSmallWebWindow(new_webview_clone.clone()));
                                 });
                                 new_webview.into()
-                                // let new_webwindow = Window::builder().set_child(a).detach();
-                                // new_webwindow
-                                // new_webwindow.web_view.clone().into()
-                                // let c: WebView = WebView::new();
-                                // c.load_uri(a.uri());
-                                // c.into()
-                                // let model.small_web_window_option = Some(SmallWebWindow::builder()
-                                //                                                         .transient_for(root)
-                                //                                                         .launch(Some(a_web_view))
-                                //                                                         .forward(sender.input_sender(), |message| match message {
-                                //                                                             SmallWebWindow::CloseSmallWebWindow => WebWindow::CloseSmallWebWindow,
-                                //                                                         }));
-                                // model.small_web_window_option.unwrap_or("Could not create SmallWebWindow").into()
                             },
                         }
                     }
@@ -174,7 +163,7 @@ impl SimpleComponent for WebWindow {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 self.small_web_window_option = Some(
                     SmallWebWindow::builder()
-                        .transient_for(root)
+                        // .transient_for(root)
                         .launch(new_webview)
                         .forward(sender.input_sender(), |message| match message {
                             SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,
