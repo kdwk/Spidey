@@ -1,7 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use pango::EllipsizeMode;
-use relm4::adw::ffi::ADW_TAB_VIEW_SHORTCUT_ALT_DIGITS;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
 };
@@ -9,11 +8,7 @@ use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
     Orientation, Overlay, PackType, ScrolledWindow, Video, WindowControls,
 };
-use relm4::{
-    factory::FactoryVecDeque,
-    prelude::{FactoryComponent, *},
-};
-use relm4_macros::*;
+use relm4::{factory::FactoryVecDeque, prelude::*};
 use url::Url;
 use webkit6::{prelude::*, NavigationAction, Settings, WebView};
 use webkit6_sys::webkit_web_view_get_settings;
@@ -48,11 +43,12 @@ impl SimpleComponent for SmallWebWindow {
                     add_css_class: "raised",
                 },
 
-                model.web_view.widget(),
+                model.web_view,
             },
 
             connect_close_request[sender] => move |_| {
-                sender.output(SmallWebWindowOutput::Close)
+                sender.output(SmallWebWindowOutput::Close);
+                gtk::Inhibit(true)
             }
         }
     }
@@ -95,7 +91,6 @@ impl SimpleComponent for WebWindow {
 
     view! {
         #[name(web_window)]
-        #[root]
         Window {
             set_default_height: 1000,
             set_default_width: 1000,

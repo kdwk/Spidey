@@ -8,12 +8,6 @@ use relm4::{
     gtk::prelude::*,
     main_application, RelmApp,
 };
-use relm4::{
-    factory::FactoryVecDeque,
-    prelude::{FactoryComponent, *},
-};
-// use relm4::prelude::*;
-use relm4_macros::*;
 
 use app::App;
 use setup::setup;
