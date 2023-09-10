@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use glib::gobject_ffi::g_object_new_with_properties;
 use pango::EllipsizeMode;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
@@ -112,14 +113,24 @@ impl Component for WebWindow {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_create[sender] => move |this_webview, _navigation_action| {
+                                // unsafe {
+                                //     // let new_webview = g_object_new_with_properties(object_type, 1, names, values);
+                                //     let new_webview = todo!();
+                                //     let sender_clone = sender.clone();
+                                //     let new_webview_clone = new_webview.clone();
+                                //     new_webview.connect_ready_to_show(move |_| {
+                                //         sender_clone.input(WebWindowInput::CreateSmallWebWindow(new_webview_clone.clone()));
+                                //     });
+                                //     new_webview.into()
+                                // }
                                 let new_webview = WebView::new();
-                                new_webview.set_property("related-view", this_webview);
-                                let sender_clone = sender.clone();
+                                new_webview.set_property("related-view", this_webview);let sender_clone = sender.clone();
                                 let new_webview_clone = new_webview.clone();
                                 new_webview.connect_ready_to_show(move |_| {
                                     sender_clone.input(WebWindowInput::CreateSmallWebWindow(new_webview_clone.clone()));
                                 });
                                 new_webview.into()
+
                             },
                         }
                     }

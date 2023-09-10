@@ -20,3 +20,4 @@ pango = "0.17.4"
 relm4-components = "0.6.1"
 relm4-macros = "0.6.2"
 relm4-icons = {version="0.6.0", features=["plus","minus","up","down","top","rich-text","edit","share","cat-sleeping", "call-missed", "left", "right", "cross", "refresh","multitasking-windows"]}
+glib = "0.18.1"
