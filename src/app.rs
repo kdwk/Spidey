@@ -84,10 +84,11 @@ pub enum WebWindowOutput {
 }
 
 #[relm4::component(pub)]
-impl SimpleComponent for WebWindow {
+impl Component for WebWindow {
     type Init = String;
     type Input = WebWindowInput;
     type Output = WebWindowOutput;
+    type CommandOutput = ();
 
     view! {
         #[name(web_window)]
@@ -158,12 +159,18 @@ impl SimpleComponent for WebWindow {
         }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: ComponentSender<Self>,
+        root: &Self::Root,
+    ) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 self.small_web_window_option = Some(
                     SmallWebWindow::builder()
-                        // .transient_for(root)
+                        .transient_for(root)
                         .launch(new_webview)
                         .forward(sender.input_sender(), |message| match message {
                             SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,
@@ -173,10 +180,6 @@ impl SimpleComponent for WebWindow {
             WebWindowInput::CloseSmallWebWindow => self.small_web_window_option = None,
         }
     }
-
-    // fn shutdown(&mut self, widgets: &mut Self::Widgets, output: relm4::Sender<Self::Output>) {
-    //     widgets.web_window.destroy();
-    // }
 }
 
 pub struct WebWindowControlBar {
