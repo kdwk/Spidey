@@ -14,11 +14,11 @@ use webkit6::{glib, prelude::*, NavigationAction, Settings, WebView};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
-// use crate::webwindowcontrolbar;
+use crate::webwindowcontrolbar::*;
 
 pub(super) struct App {
     url_entry_buffer: EntryBuffer,
-    webwindowcontrolbars: FactoryVecDeque<crate::webwindowcontrolbar::WebWindowControlBar>,
+    webwindowcontrolbars: FactoryVecDeque<WebWindowControlBar>,
 }
 
 #[derive(Debug)]
