@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use glib::gobject_ffi::g_object_new_with_properties;
+use glib;
 use pango::EllipsizeMode;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
@@ -81,6 +81,7 @@ pub enum WebWindowInput {
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
+    ReportLoadChanged((bool, bool)),
     Close,
 }
 
@@ -112,6 +113,9 @@ impl Component for WebWindow {
                         WebView {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
+                            connect_load_changed[sender] => move |this_webview, _load_event| {
+                                sender.output(WebWindowOutput::ReportLoadChanged((this_webview.can_go_back(), this_webview.can_go_forward())));
+                            },
                             connect_create[sender] => move |this_webview, _navigation_action| {
                                 // let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
                                 let new_webview = WebView::new();
@@ -189,6 +193,8 @@ pub struct WebWindowControlBar {
     id: DynamicIndex,
     url: String,
     webwindow: Controller<WebWindow>,
+    web_view_can_go_back: bool,
+    web_view_can_go_forward: bool,
 }
 
 pub type WebWindowControlBarInit = String;
@@ -200,6 +206,7 @@ pub enum WebWindowControlBarInput {
     Close,
     Refresh,
     Focus,
+    WebViewLoadChanged((bool, bool)),
 }
 
 #[derive(Debug)]
@@ -229,6 +236,8 @@ impl FactoryComponent for WebWindowControlBar {
                 add_css_class: "flat",
                 set_icon_name: "left",
                 set_tooltip_text: Some("Back"),
+                #[watch]
+                set_sensitive: self.web_view_can_go_back,
                 connect_clicked => WebWindowControlBarInput::Back,
             },
 
@@ -238,6 +247,8 @@ impl FactoryComponent for WebWindowControlBar {
                 add_css_class: "flat",
                 set_icon_name: "right",
                 set_tooltip_text: Some("Forward"),
+                #[watch]
+                set_sensitive: self.web_view_can_go_forward,
                 connect_clicked => WebWindowControlBarInput::Forward,
             },
 
@@ -291,6 +302,10 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
             WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
+            WebWindowControlBarInput::WebViewLoadChanged((can_go_back, can_go_forward)) => {
+                self.web_view_can_go_back = can_go_back;
+                self.web_view_can_go_forward = can_go_forward;
+            }
         }
     }
 
@@ -299,12 +314,17 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindow::builder()
                 .launch(init.clone())
                 .forward(sender.input_sender(), |message| match message {
+                    WebWindowOutput::ReportLoadChanged((can_go_back, can_go_forward)) => {
+                        WebWindowControlBarInput::WebViewLoadChanged((can_go_back, can_go_forward))
+                    }
                     WebWindowOutput::Close => WebWindowControlBarInput::Close,
                 });
         Self {
             id: index.clone(),
             url: init,
             webwindow: new_webwindow,
+            web_view_can_go_back: false,
+            web_view_can_go_forward: false,
         }
     }
 
