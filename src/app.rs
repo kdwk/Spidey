@@ -113,18 +113,9 @@ impl Component for WebWindow {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_create[sender] => move |this_webview, _navigation_action| {
-                                // unsafe {
-                                //     // let new_webview = g_object_new_with_properties(object_type, 1, names, values);
-                                //     let new_webview = todo!();
-                                //     let sender_clone = sender.clone();
-                                //     let new_webview_clone = new_webview.clone();
-                                //     new_webview.connect_ready_to_show(move |_| {
-                                //         sender_clone.input(WebWindowInput::CreateSmallWebWindow(new_webview_clone.clone()));
-                                //     });
-                                //     new_webview.into()
-                                // }
-                                let new_webview = WebView::new();
-                                new_webview.set_property("related-view", this_webview);let sender_clone = sender.clone();
+                                let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
+                                // new_webview.set_property("related-view", this_webview);
+                                let sender_clone = sender.clone();
                                 let new_webview_clone = new_webview.clone();
                                 new_webview.connect_ready_to_show(move |_| {
                                     sender_clone.input(WebWindowInput::CreateSmallWebWindow(new_webview_clone.clone()));
@@ -326,7 +317,6 @@ impl FactoryComponent for WebWindowControlBar {
 pub(super) struct App {
     url_entry_buffer: EntryBuffer,
     webwindowcontrolbars: FactoryVecDeque<WebWindowControlBar>,
-    entry_is_valid: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -379,11 +369,6 @@ impl SimpleComponent for App {
                             set_margin_all: 5,
                             #[watch]
                             set_buffer: &model.url_entry_buffer,
-                            #[watch]
-                            set_css_classes: match model.entry_is_valid {
-                                Some(is_valid) => if is_valid {&["success"]} else {&["error"]},
-                                None => &[""],
-                            },
                             set_placeholder_text: Some("Search the web or enter a link"),
                             set_input_purpose: InputPurpose::Url,
                             set_input_hints: InputHints::NO_SPELLCHECK,
@@ -434,7 +419,6 @@ impl SimpleComponent for App {
         let model = App {
             webwindowcontrolbars: webwindowcontrolbars,
             url_entry_buffer: EntryBuffer::default(),
-            entry_is_valid: None,
         };
         let webwindowcontrolbar_box = model.webwindowcontrolbars.widget();
         let widgets = view_output!();
@@ -479,20 +463,6 @@ impl SimpleComponent for App {
 }
 
 fn process_url(mut url: String) -> Result<String, ()> {
-    /*
-    if url.contains(" ") || !url.contains(".") {
-        url = String::from(url.trim());
-        url = url.replace(" ", "+");
-        let mut search = String::from("https://duckduckgo.com/?q=");
-        search.push_str(url.as_str());
-        url = search;
-    } else if !(url.starts_with("http://")
-        || url.starts_with("https://")
-        || url.starts_with("webkit://"))
-    {
-        url = String::from("https://") + url.as_str();
-    }
-    */
     if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {
     } else if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
