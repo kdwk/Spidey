@@ -81,7 +81,8 @@ pub enum WebWindowInput {
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
-    ReportLoadChanged((bool, bool)),
+    LoadChanged((bool, bool)),
+    TitleChanged(String),
     Close,
 }
 
@@ -115,7 +116,14 @@ impl Component for WebWindow {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_load_changed[sender] => move |this_webview, _load_event| {
-                                sender.output(WebWindowOutput::ReportLoadChanged((this_webview.can_go_back(), this_webview.can_go_forward())));
+                                sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward())));
+                            },
+                            connect_title_notify[sender] => move |this_webview| {
+                                let title: String = match this_webview.title() {
+                                    Some(text) => text.into(),
+                                    None => "".into()
+                                };
+                                sender.output(WebWindowOutput::TitleChanged(title));
                             },
                             connect_create[sender] => move |this_webview, _navigation_action| {
                                 // let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
@@ -193,6 +201,7 @@ impl Component for WebWindow {
 pub struct WebWindowControlBar {
     id: DynamicIndex,
     url: String,
+    label: String,
     webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
     web_view_can_go_forward: bool,
@@ -208,6 +217,7 @@ pub enum WebWindowControlBarInput {
     Refresh,
     Focus,
     WebViewLoadChanged((bool, bool)),
+    WebViewTitleChanged(String),
 }
 
 #[derive(Debug)]
@@ -262,13 +272,15 @@ impl FactoryComponent for WebWindowControlBar {
                 connect_clicked => WebWindowControlBarInput::Refresh,
             },
 
+            #[name(label)]
             Label {
                 set_hexpand: true,
                 set_halign: Align::Start,
                 set_margin_start: 5,
                 set_margin_end: 5,
                 set_ellipsize: EllipsizeMode::End,
-                set_label: &self.url,
+                #[watch]
+                set_label: &self.label,
             },
 
             #[name(focus_btn)]
@@ -307,6 +319,7 @@ impl FactoryComponent for WebWindowControlBar {
                 self.web_view_can_go_back = can_go_back;
                 self.web_view_can_go_forward = can_go_forward;
             }
+            WebWindowControlBarInput::WebViewTitleChanged(title) => self.label = title,
         }
     }
 
@@ -315,14 +328,18 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindow::builder()
                 .launch(init.clone())
                 .forward(sender.input_sender(), |message| match message {
-                    WebWindowOutput::ReportLoadChanged((can_go_back, can_go_forward)) => {
+                    WebWindowOutput::LoadChanged((can_go_back, can_go_forward)) => {
                         WebWindowControlBarInput::WebViewLoadChanged((can_go_back, can_go_forward))
+                    }
+                    WebWindowOutput::TitleChanged(title) => {
+                        WebWindowControlBarInput::WebViewTitleChanged(title)
                     }
                     WebWindowOutput::Close => WebWindowControlBarInput::Close,
                 });
         Self {
             id: index.clone(),
-            url: init,
+            url: init.clone(),
+            label: init,
             webwindow: new_webwindow,
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
