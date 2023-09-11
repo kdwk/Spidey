@@ -113,8 +113,9 @@ impl Component for WebWindow {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_create[sender] => move |this_webview, _navigation_action| {
-                                let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
-                                // new_webview.set_property("related-view", this_webview);
+                                // let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
+                                let new_webview = WebView::new();
+                                new_webview.set_property("related-view", this_webview);
                                 let sender_clone = sender.clone();
                                 let new_webview_clone = new_webview.clone();
                                 new_webview.connect_ready_to_show(move |_| {
@@ -321,7 +322,6 @@ pub(super) struct App {
 
 #[derive(Debug)]
 pub enum AppInput {
-    EntryChanged,
     NewWebWindow, // Also handles adding a WebWindowControlBar
     RemoveWebWindowControlBar(DynamicIndex),
 }
@@ -430,18 +430,6 @@ impl SimpleComponent for App {
 
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
-            AppInput::EntryChanged => {
-                if !self.url_entry_buffer.text().is_empty() {
-                    let url_processed_result =
-                        process_url(String::from(self.url_entry_buffer.text()));
-                    match url_processed_result {
-                        Ok(_) => self.entry_is_valid = Some(true),
-                        Err(_) => self.entry_is_valid = Some(false),
-                    }
-                } else {
-                    self.entry_is_valid = None;
-                }
-            }
             AppInput::NewWebWindow => {
                 let url_processed_result = process_url(String::from(self.url_entry_buffer.text()));
                 let final_url_option = url_processed_result.ok();
@@ -449,7 +437,6 @@ impl SimpleComponent for App {
                     Some(final_url) => {
                         self.webwindowcontrolbars.guard().push_back(final_url);
                         self.url_entry_buffer = EntryBuffer::default();
-                        self.entry_is_valid = None;
                     }
                     None => {}
                 }
