@@ -103,9 +103,17 @@ impl Component for WebWindow {
                 add_overlay = &WindowControls {
                     set_halign: Align::End,
                     set_valign: Align::Start,
+                    set_margin_top: 5,
+                    set_margin_end: 5,
                     set_side: PackType::End,
                     add_css_class: "webwindow-close",
                 },
+                // add_overlay = &HeaderBar {
+                //     set_halign: Align::Fill,
+                //     set_valign: Align::Start,
+                //     set_decoration_layout: Some(":close"),
+                //     add_css_class: "webwindow-headerbar",
+                // },
                 #[name(toast_overlay)]
                 ToastOverlay {
                     Box {

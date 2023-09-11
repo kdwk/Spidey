@@ -3,6 +3,16 @@
   font-weight: bold;
 }
 
+/* .webwindow-headerbar {
+  opacity: 0;
+  min-height: 20px;
+}
+
+.webwindow-headerbar:hover {
+  opacity: 1;
+  min-height: 20px;
+} */
+
 .webwindow-close {
   opacity: 0;
 }
