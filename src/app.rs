@@ -103,6 +103,7 @@ impl Component for WebWindow {
                     set_halign: Align::End,
                     set_valign: Align::Start,
                     set_side: PackType::End,
+                    add_css_class: "webwindow-close",
                 },
                 #[name(toast_overlay)]
                 ToastOverlay {
