@@ -83,9 +83,6 @@ impl Component for WebWindow {
                             connect_create[sender] => move |this_webview, _navigation_action| {
                                 let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
                                 new_webview.set_vexpand(true);
-                                // println!("{}", new_webview.uri().unwrap());
-                                // let new_webview = WebView::new();
-                                // new_webview.set_property("related-view", this_webview);
                                 let sender_clone = sender.clone();
                                 let new_webview_clone = new_webview.clone();
                                 new_webview.connect_ready_to_show(move |_| {
