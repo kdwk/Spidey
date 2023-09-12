@@ -141,10 +141,9 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                println!("{}", new_webview.uri().unwrap());
                 self.small_web_window_option = Some(
                     SmallWebWindow::builder()
-                        .transient_for(root)
+                        // .transient_for(root)
                         .launch(new_webview)
                         .forward(sender.input_sender(), |message| match message {
                             SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,

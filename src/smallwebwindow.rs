@@ -48,7 +48,9 @@ impl SimpleComponent for SmallWebWindow {
             connect_close_request[sender] => move |_| {
                 sender.output(SmallWebWindowOutput::Close);
                 gtk::Inhibit(true)
-            }
+            },
+
+            present: ()
         }
     }
 
