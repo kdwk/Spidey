@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use pango::EllipsizeMode;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
 };

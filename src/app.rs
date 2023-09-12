@@ -1,12 +1,11 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use pango::EllipsizeMode;
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
 };
 use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
-    Orientation, Overlay, PackType, ScrolledWindow, WindowControls,
+    Orientation, Overlay, PackType, ScrolledWindow, WindowControls, pango::EllipsizeMode,
 };
 use relm4::{factory::FactoryVecDeque, prelude::*};
 use url::Url;
