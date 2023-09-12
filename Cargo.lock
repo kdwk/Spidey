@@ -1013,9 +1013,9 @@ dependencies = [
 
 [[package]]
 name = "relm4-components"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edd02dd4c31b952cedb6f3ef200438963b1c4b7889f2ce760c607a1dc7f513e3"
+checksum = "5485d72dc94c12a59c571d80cf9a545e5b9a2f0ebc90ea5fd234929a9376f66d"
 dependencies = [
  "once_cell",
  "relm4",
@@ -1182,7 +1182,6 @@ name = "spidey"
 version = "0.1.0"
 dependencies = [
  "gettext-rs",
- "pango",
  "relm4",
  "relm4-components",
  "relm4-icons",
