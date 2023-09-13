@@ -23,6 +23,7 @@ pub struct WebWindow {
 pub enum WebWindowInput {
     CreateSmallWebWindow(WebView),
     TitleChanged(Option<String>),
+    InsecureContentDetected,
 }
 
 #[derive(Debug)]
@@ -79,6 +80,9 @@ impl Component for WebWindow {
                                 };
                                 sender.input(WebWindowInput::TitleChanged(title));
                             },
+                            connect_insecure_content_detected[sender] => move |_, _| {
+                                sender.input(WebWindowInput::InsecureContentDetected);
+                            },
                             connect_create[sender] => move |this_webview, _navigation_action| {
                                 let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
                                 new_webview.set_vexpand(true);
@@ -134,9 +138,12 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
+                let height_over_width = widgets.web_window.height() / widgets.web_window.width();
+                let smallwebwindow_width = widgets.web_window.width() / 2;
+                let smallwebwindow_height = smallwebwindow_width * height_over_width + 100;
                 let smallwebwindow = SmallWebWindow::builder()
                     .transient_for(root)
-                    .launch(new_webview)
+                    .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
                     .detach();
                 /*
                 smallwebwindow.model().web_view.connect_title_notify(move |this_webview| {
@@ -158,6 +165,10 @@ impl Component for WebWindow {
                     });
                 */
                 sender.output(WebWindowOutput::TitleChanged(title));
+            }
+            WebWindowInput::InsecureContentDetected => {
+                let toast = Toast::new("This page is insecure");
+                widgets.toast_overlay.add_toast(toast);
             }
         }
     }
