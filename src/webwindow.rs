@@ -134,18 +134,30 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                SmallWebWindow::builder()
+                let smallwebwindow = SmallWebWindow::builder()
                     .transient_for(root)
                     .launch(new_webview)
                     .detach();
+                /*
+                smallwebwindow.model().web_view.connect_title_notify(move |this_webview| {
+                    smallwebwindow.widgets()
+                        .small_web_window
+                        .set_title(match this_webview.title() {
+                            Some(title) => Some(title.as_str()),
+                            None => None,
+                        });
+                });
+                */
             }
             WebWindowInput::TitleChanged(title) => {
-                let title_clone = title.clone();
-                widgets.web_window.set_title(match title_clone {
-                    Some(string) => Some(string.as_str()),
-                    None => None,
-                });
-                sender.output(WebWindowOutput::TitleChanged(title));
+                /*
+                    let title_clone = title.clone();
+                    widgets.web_window.set_title(match title_clone {
+                        Some(string) => Some(string.as_str()),
+                        None => None,
+                    });
+                    sender.output(WebWindowOutput::TitleChanged(title));
+                */
             }
         }
     }

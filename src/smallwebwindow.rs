@@ -53,14 +53,6 @@ impl SimpleComponent for SmallWebWindow {
     ) -> ComponentParts<Self> {
         let model = SmallWebWindow { web_view: init };
         let widgets = view_output!();
-        model.web_view.connect_title_notify(move |this_webview| {
-            widgets
-                .small_web_window
-                .set_title(match this_webview.title() {
-                    Some(title) => Some(title.as_str()),
-                    None => None,
-                });
-        });
         ComponentParts {
             model: model,
             widgets: widgets,
