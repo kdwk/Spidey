@@ -35,7 +35,7 @@ pub enum WebWindowControlBarInput {
     Refresh,
     Focus,
     WebViewLoadChanged((bool, bool)),
-    WebViewTitleChanged(String),
+    WebViewTitleChanged(Option<String>),
 }
 
 #[derive(Debug)]
@@ -137,7 +137,12 @@ impl FactoryComponent for WebWindowControlBar {
                 self.web_view_can_go_back = can_go_back;
                 self.web_view_can_go_forward = can_go_forward;
             }
-            WebWindowControlBarInput::WebViewTitleChanged(title) => self.label = title,
+            WebWindowControlBarInput::WebViewTitleChanged(title) => {
+                self.label = match title {
+                    Some(string) => string,
+                    None => "".into(),
+                }
+            }
         }
     }
 

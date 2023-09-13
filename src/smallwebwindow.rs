@@ -15,7 +15,7 @@ use webkit6_sys::webkit_web_view_get_settings;
 use crate::config::{APP_ID, PROFILE};
 
 pub struct SmallWebWindow {
-    web_view: WebView,
+    pub web_view: WebView,
 }
 
 #[relm4::component(pub)]
@@ -25,6 +25,7 @@ impl SimpleComponent for SmallWebWindow {
     type Output = ();
 
     view! {
+        #[name(small_web_window)]
         Window {
             set_default_height: 550,
             set_default_width: 450,
@@ -52,6 +53,14 @@ impl SimpleComponent for SmallWebWindow {
     ) -> ComponentParts<Self> {
         let model = SmallWebWindow { web_view: init };
         let widgets = view_output!();
+        model.web_view.connect_title_notify(move |this_webview| {
+            widgets
+                .small_web_window
+                .set_title(match this_webview.title() {
+                    Some(title) => Some(title.as_str()),
+                    None => None,
+                });
+        });
         ComponentParts {
             model: model,
             widgets: widgets,

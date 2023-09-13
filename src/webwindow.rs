@@ -22,12 +22,13 @@ pub struct WebWindow {
 #[derive(Debug)]
 pub enum WebWindowInput {
     CreateSmallWebWindow(WebView),
+    TitleChanged(Option<String>),
 }
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
     LoadChanged((bool, bool)),
-    TitleChanged(String),
+    TitleChanged(Option<String>),
     Close,
 }
 
@@ -72,11 +73,11 @@ impl Component for WebWindow {
                                 sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward())));
                             },
                             connect_title_notify[sender] => move |this_webview| {
-                                let title: String = match this_webview.title() {
-                                    Some(text) => text.into(),
-                                    None => "".into()
+                                let title: Option<String> = match this_webview.title() {
+                                    Some(text) => Some(String::from(text.as_str())),
+                                    None => None
                                 };
-                                sender.output(WebWindowOutput::TitleChanged(title));
+                                sender.input(WebWindowInput::TitleChanged(title));
                             },
                             connect_create[sender] => move |this_webview, _navigation_action| {
                                 let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
@@ -137,6 +138,14 @@ impl Component for WebWindow {
                     .transient_for(root)
                     .launch(new_webview)
                     .detach();
+            }
+            WebWindowInput::TitleChanged(title) => {
+                let title_clone = title.clone();
+                widgets.web_window.set_title(match title_clone {
+                    Some(string) => Some(string.as_str()),
+                    None => None,
+                });
+                sender.output(WebWindowOutput::TitleChanged(title));
             }
         }
     }
