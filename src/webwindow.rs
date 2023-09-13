@@ -17,13 +17,11 @@ use crate::smallwebwindow::*;
 
 pub struct WebWindow {
     pub url: String,
-    small_web_window_option: Option<Controller<SmallWebWindow>>,
 }
 
 #[derive(Debug)]
 pub enum WebWindowInput {
     CreateSmallWebWindow(WebView),
-    CloseSmallWebWindow,
 }
 
 #[derive(Debug)]
@@ -110,10 +108,7 @@ impl Component for WebWindow {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = WebWindow {
-            url: init,
-            small_web_window_option: None,
-        };
+        let model = WebWindow { url: init };
         let widgets = view_output!();
         let web_view_settings: Settings = Settings::new();
         web_view_settings.set_media_playback_requires_user_gesture(true);
@@ -138,16 +133,11 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                self.small_web_window_option = Some(
-                    SmallWebWindow::builder()
-                        // .transient_for(root)
-                        .launch(new_webview)
-                        .forward(sender.input_sender(), |message| match message {
-                            SmallWebWindowOutput::Close => WebWindowInput::CloseSmallWebWindow,
-                        }),
-                );
+                SmallWebWindow::builder()
+                    .transient_for(root)
+                    .launch(new_webview)
+                    .detach();
             }
-            WebWindowInput::CloseSmallWebWindow => self.small_web_window_option = None,
         }
     }
 }

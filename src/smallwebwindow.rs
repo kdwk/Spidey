@@ -18,21 +18,17 @@ pub struct SmallWebWindow {
     web_view: WebView,
 }
 
-#[derive(Debug)]
-pub enum SmallWebWindowOutput {
-    Close,
-}
-
 #[relm4::component(pub)]
 impl SimpleComponent for SmallWebWindow {
     type Init = WebView;
     type Input = ();
-    type Output = SmallWebWindowOutput;
+    type Output = ();
 
     view! {
         Window {
-            set_default_height: 400,
-            set_default_width: 400,
+            set_default_height: 550,
+            set_default_width: 450,
+            set_modal: true,
 
             Box {
                 set_orientation: Orientation::Vertical,
@@ -43,11 +39,6 @@ impl SimpleComponent for SmallWebWindow {
                 },
 
                 model.web_view.clone(),
-            },
-
-            connect_close_request[sender] => move |_| {
-                sender.output(SmallWebWindowOutput::Close);
-                gtk::Inhibit(true)
             },
 
             present: ()
