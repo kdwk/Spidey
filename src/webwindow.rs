@@ -156,8 +156,8 @@ impl Component for WebWindow {
                         Some(string) => Some(string.as_str()),
                         None => None,
                     });
-                    sender.output(WebWindowOutput::TitleChanged(title));
                 */
+                    sender.output(WebWindowOutput::TitleChanged(title));
             }
         }
     }
