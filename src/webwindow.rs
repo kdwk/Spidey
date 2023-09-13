@@ -157,7 +157,7 @@ impl Component for WebWindow {
                         None => None,
                     });
                 */
-                    sender.output(WebWindowOutput::TitleChanged(title));
+                sender.output(WebWindowOutput::TitleChanged(title));
             }
         }
     }
