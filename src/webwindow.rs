@@ -123,6 +123,20 @@ impl Component for WebWindow {
         } else {
             widgets.web_view.set_settings(&web_view_settings);
         }
+        let web_view_network_session = widgets.web_view.network_session();
+        match web_view_network_session {
+            Some(session) => {
+                session.connect_download_started(move |this_session, download_object| {
+                    download_object.connect_failed(move |this_download_object, error| {
+                        println!("{}", error.to_string());
+                        widgets
+                            .toast_overlay
+                            .add_toast(Toast::new("Download failed"));
+                    });
+                });
+            }
+            None => {}
+        }
         ComponentParts {
             model: model,
             widgets: widgets,
@@ -166,10 +180,9 @@ impl Component for WebWindow {
                 */
                 sender.output(WebWindowOutput::TitleChanged(title));
             }
-            WebWindowInput::InsecureContentDetected => {
-                let toast = Toast::new("This page is insecure");
-                widgets.toast_overlay.add_toast(toast);
-            }
+            WebWindowInput::InsecureContentDetected => widgets
+                .toast_overlay
+                .add_toast(Toast::new("This page is insecure")),
         }
     }
 }
