@@ -126,12 +126,18 @@ impl Component for WebWindow {
         let web_view_network_session = widgets.web_view.network_session();
         match web_view_network_session {
             Some(session) => {
-                session.connect_download_started(move |this_session, download_object| {
-                    download_object.connect_failed(move |this_download_object, error| {
+                session.connect_download_started(|this_session, download_object| {
+                    download_object.connect_failed(|this_download_object, error| {
                         println!("{}", error.to_string());
-                        widgets
-                            .toast_overlay
-                            .add_toast(Toast::new("Download failed"));
+                        // widgets
+                        //     .toast_overlay
+                        //     .add_toast(Toast::new("Download failed"));
+                    });
+                    download_object.connect_finished(|this_download_object| {
+                        // widgets
+                        //     .toast_overlay
+                        //     .add_toast(Toast::new("File saved to Downloads folder"));
+                        //TODO: add button to open file
                     });
                 });
             }
