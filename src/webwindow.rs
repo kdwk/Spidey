@@ -84,6 +84,7 @@ impl Component for WebWindow {
                                 sender.input(WebWindowInput::InsecureContentDetected);
                             },
                             connect_create[sender] => move |this_webview, _navigation_action| {
+                                //TODO: move to smallwebwindow.rs
                                 let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
                                 new_webview.set_vexpand(true);
                                 let sender_clone = sender.clone();
