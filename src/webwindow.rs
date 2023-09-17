@@ -124,19 +124,19 @@ impl Component for WebWindow {
             widgets.web_view.set_settings(&web_view_settings);
         }
         let web_view_network_session = widgets.web_view.network_session();
+        let toast_overlay_widget_clone = widgets.toast_overlay.clone();
         match web_view_network_session {
             Some(session) => {
-                session.connect_download_started(|this_session, download_object| {
-                    download_object.connect_failed(|this_download_object, error| {
-                        println!("{}", error.to_string());
-                        // widgets
-                        //     .toast_overlay
-                        //     .add_toast(Toast::new("Download failed"));
+                session.connect_download_started(move |this_session, download_object| {
+                    let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
+                    let toast_overlay_widget_clone_clone_2 = toast_overlay_widget_clone.clone();
+                    download_object.connect_failed(move |this_download_object, error| {
+                        eprintln!("{}", error.to_string());
+                        toast_overlay_widget_clone_clone_1.add_toast(Toast::new("Download failed"));
                     });
-                    download_object.connect_finished(|this_download_object| {
-                        // widgets
-                        //     .toast_overlay
-                        //     .add_toast(Toast::new("File saved to Downloads folder"));
+                    download_object.connect_finished(move |this_download_object| {
+                        toast_overlay_widget_clone_clone_2
+                            .add_toast(Toast::new("File saved to Downloads folder"));
                         //TODO: add button to open file
                     });
                 });
