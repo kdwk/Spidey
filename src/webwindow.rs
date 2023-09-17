@@ -22,14 +22,14 @@ pub struct WebWindow {
 #[derive(Debug)]
 pub enum WebWindowInput {
     CreateSmallWebWindow(WebView),
-    TitleChanged(Option<String>),
+    TitleChanged(String),
     InsecureContentDetected,
 }
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
     LoadChanged((bool, bool)),
-    TitleChanged(Option<String>),
+    TitleChanged(String),
     Close,
 }
 
@@ -74,11 +74,11 @@ impl Component for WebWindow {
                                 sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward())));
                             },
                             connect_title_notify[sender] => move |this_webview| {
-                                let title: Option<String> = match this_webview.title() {
-                                    Some(text) => Some(String::from(text.as_str())),
-                                    None => None
-                                };
-                                sender.input(WebWindowInput::TitleChanged(title));
+                                let title = this_webview.title().map(|title| ToString::to_string(&title));
+                                sender.input(WebWindowInput::TitleChanged(match title {
+                                    Some(text) => text,
+                                    None => "".into()
+                                }));
                             },
                             connect_insecure_content_detected[sender] => move |_, _| {
                                 sender.input(WebWindowInput::InsecureContentDetected);
@@ -165,25 +165,21 @@ impl Component for WebWindow {
                     .transient_for(root)
                     .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
                     .detach();
-                /*
-                smallwebwindow.model().web_view.connect_title_notify(move |this_webview| {
-                    smallwebwindow.widgets()
-                        .small_web_window
-                        .set_title(match this_webview.title() {
-                            Some(title) => Some(title.as_str()),
-                            None => None,
-                        });
-                });
-                */
+                let small_web_window_widget_clone =
+                    smallwebwindow.widgets().small_web_window.clone();
+                smallwebwindow
+                    .model()
+                    .web_view
+                    .connect_title_notify(move |this_webview| {
+                        let title = this_webview
+                            .title()
+                            .map(|title| ToString::to_string(&title));
+                        small_web_window_widget_clone
+                            .set_title(Some(&title.unwrap_or(String::from(""))[..]));
+                    });
             }
             WebWindowInput::TitleChanged(title) => {
-                /*
-                    let title_clone = title.clone();
-                    widgets.web_window.set_title(match title_clone {
-                        Some(string) => Some(string.as_str()),
-                        None => None,
-                    });
-                */
+                widgets.web_window.set_title(Some(title.as_str()));
                 sender.output(WebWindowOutput::TitleChanged(title));
             }
             WebWindowInput::InsecureContentDetected => widgets

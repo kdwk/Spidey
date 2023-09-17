@@ -34,8 +34,8 @@ pub enum WebWindowControlBarInput {
     Close,
     Refresh,
     Focus,
-    WebViewLoadChanged((bool, bool)),
-    WebViewTitleChanged(Option<String>),
+    LoadChanged((bool, bool)),
+    TitleChanged(String),
 }
 
 #[derive(Debug)]
@@ -133,16 +133,11 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
             WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
-            WebWindowControlBarInput::WebViewLoadChanged((can_go_back, can_go_forward)) => {
+            WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
                 self.web_view_can_go_back = can_go_back;
                 self.web_view_can_go_forward = can_go_forward;
             }
-            WebWindowControlBarInput::WebViewTitleChanged(title) => {
-                self.label = match title {
-                    Some(string) => string,
-                    None => "".into(),
-                }
-            }
+            WebWindowControlBarInput::TitleChanged(title) => self.label = title,
         }
     }
 
@@ -152,10 +147,10 @@ impl FactoryComponent for WebWindowControlBar {
                 .launch(init.clone())
                 .forward(sender.input_sender(), |message| match message {
                     WebWindowOutput::LoadChanged((can_go_back, can_go_forward)) => {
-                        WebWindowControlBarInput::WebViewLoadChanged((can_go_back, can_go_forward))
+                        WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward))
                     }
                     WebWindowOutput::TitleChanged(title) => {
-                        WebWindowControlBarInput::WebViewTitleChanged(title)
+                        WebWindowControlBarInput::TitleChanged(title)
                     }
                     WebWindowOutput::Close => WebWindowControlBarInput::Close,
                 });
