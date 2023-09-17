@@ -18,7 +18,6 @@ use crate::webwindow::*;
 
 pub struct WebWindowControlBar {
     id: DynamicIndex,
-    url: String,
     label: String,
     webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
@@ -156,7 +155,6 @@ impl FactoryComponent for WebWindowControlBar {
                 });
         Self {
             id: index.clone(),
-            url: init.clone(),
             label: init,
             webwindow: new_webwindow,
             web_view_can_go_back: false,

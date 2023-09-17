@@ -71,7 +71,7 @@ impl Component for WebWindow {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_load_changed[sender] => move |this_webview, _load_event| {
-                                sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward())));
+                                sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).unwrap();
                             },
                             connect_title_notify[sender] => move |this_webview| {
                                 let title = this_webview.title().map(|title| ToString::to_string(&title));
@@ -100,7 +100,7 @@ impl Component for WebWindow {
             },
 
             connect_close_request[sender] => move |_| {
-                sender.output(WebWindowOutput::Close);
+                sender.output(WebWindowOutput::Close).unwrap();
                 gtk::Inhibit(true)
             } ,
 
@@ -180,7 +180,7 @@ impl Component for WebWindow {
             }
             WebWindowInput::TitleChanged(title) => {
                 widgets.web_window.set_title(Some(title.as_str()));
-                sender.output(WebWindowOutput::TitleChanged(title));
+                sender.output(WebWindowOutput::TitleChanged(title)).unwrap();
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
