@@ -1,5 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use std::fs::{create_dir_all, File};
+
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
 };
@@ -14,6 +16,7 @@ use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
 use crate::smallwebwindow::*;
+use directories;
 
 pub struct WebWindow {
     pub url: String,
@@ -135,15 +138,21 @@ impl Component for WebWindow {
                     });
                 });
                 let cookie_manager = session.cookie_manager();
-                // match cookie_manager {
-                //     Some(cookie_manager) => {
-                //         cookie_manager.set_persistent_storage(
-                //             "data/cookies.sqlite",
-                //             CookiePersistentStorage::Sqlite,
-                //         );
-                //     }
-                //     None => {}
-                // }
+                match cookie_manager {
+                    Some(cookie_manager) => {
+                        if let Some(dir) =
+                            directories::ProjectDirs::from("com", "github.kdwk", "Spidey")
+                        {
+                            create_dir_all(dir.data_dir()).unwrap();
+                            let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
+                            cookie_manager.set_persistent_storage(
+                                &cookiesdb_file_path.into_os_string().into_string().unwrap()[..],
+                                CookiePersistentStorage::Sqlite,
+                            );
+                        }
+                    }
+                    None => {}
+                }
             }
             None => {}
         }
