@@ -9,7 +9,7 @@ use relm4::gtk::{
 };
 use relm4::{factory::FactoryVecDeque, prelude::*};
 use url::Url;
-use webkit6::{glib, prelude::*, NavigationAction, Settings, WebView};
+use webkit6::{glib, prelude::*, CookiePersistentStorage, NavigationAction, Settings, WebView};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
@@ -55,12 +55,6 @@ impl Component for WebWindow {
                     set_side: PackType::End,
                     add_css_class: "webwindow-close",
                 },
-                // add_overlay = &HeaderBar {
-                //     set_halign: Align::Fill,
-                //     set_valign: Align::Start,
-                //     set_decoration_layout: Some(":close"),
-                //     add_css_class: "webwindow-headerbar",
-                // },
                 #[name(toast_overlay)]
                 ToastOverlay {
                     Box {
@@ -123,9 +117,9 @@ impl Component for WebWindow {
         } else {
             widgets.web_view.set_settings(&web_view_settings);
         }
-        let web_view_network_session = widgets.web_view.network_session();
+        let network_session = widgets.web_view.network_session();
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
-        match web_view_network_session {
+        match network_session {
             Some(session) => {
                 session.connect_download_started(move |this_session, download_object| {
                     let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
@@ -140,6 +134,16 @@ impl Component for WebWindow {
                         //TODO: add button to open file
                     });
                 });
+                let cookie_manager = session.cookie_manager();
+                // match cookie_manager {
+                //     Some(cookie_manager) => {
+                //         cookie_manager.set_persistent_storage(
+                //             "data/cookies.sqlite",
+                //             CookiePersistentStorage::Sqlite,
+                //         );
+                //     }
+                //     None => {}
+                // }
             }
             None => {}
         }
