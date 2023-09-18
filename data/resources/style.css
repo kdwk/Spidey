@@ -1,3 +1,6 @@
+@define-color accent_color #2B3784;
+@define-color accent_bg_color #2B3784;
+
 .title-header{
   font-size: 36px;
   font-weight: bold;
