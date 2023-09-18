@@ -73,7 +73,7 @@ impl SimpleComponent for App {
                             set_placeholder_text: Some("Search the web or enter a link"),
                             set_input_purpose: InputPurpose::Url,
                             set_input_hints: InputHints::NO_SPELLCHECK,
-                            // connect_changed => AppInput::EntryChanged,
+                            connect_activate => AppInput::NewWebWindow,
                         },
 
                         #[name(add_btn)]
@@ -81,7 +81,7 @@ impl SimpleComponent for App {
                             set_margin_all: 5,
                             set_halign: Align::End,
                             set_icon_name: "plus",
-                            set_tooltip_text: Some("New Window"),
+                            set_tooltip_text: Some("New Web Window"),
                             connect_clicked => AppInput::NewWebWindow,
                         }
                     },
