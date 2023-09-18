@@ -15,8 +15,10 @@
 
 .webwindow-close {
   opacity: 0;
+  transition: opacity 0.3s;
 }
 
 .webwindow-close:hover {
   opacity: 1;
+  transition: opacity 0.3s;
 }
