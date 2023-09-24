@@ -23,17 +23,31 @@ jobs:
         run: cargo fmt --all -- --check
 
   flatpak:
-    name: Flatpak x86_64
+    name: Flatpak
     runs-on: ubuntu-latest
     container:
       image: bilelmoussaoui/flatpak-github-actions:gnome-nightly
       options: --privileged
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+      fail-fast: false
     steps:
     - uses: actions/checkout@master
+    - name: Install dependencies
+      if ${{ matrix.arch != 'x86_64' }}
+      run: |
+        dnf -y install docker
+    - name: Set up QEMU
+      if ${{ matrix.arch != 'x86_64' }}
+      id: qemu
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
     - uses: bilelmoussaoui/flatpak-github-actions/flatpak-builder@v6
       with:
         bundle: spidey.flatpak
         manifest-path: build-aux/com.github.kdwk.Spidey.Devel.json
         run-tests: true
         cache-key: flatpak-builder-${{ github.sha }}
-        arch: "x86_64"
+        arch: ${{ matrix.arch }}
