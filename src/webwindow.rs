@@ -7,7 +7,7 @@ use relm4::adw::{
 };
 use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
-    Orientation, Overlay, PackType, ScrolledWindow, WindowControls,
+    Orientation, Overlay, PackType, ScrolledWindow, WindowControls, WindowHandle,
 };
 use relm4::{factory::FactoryVecDeque, prelude::*};
 use url::Url;
@@ -50,6 +50,11 @@ impl Component for WebWindow {
             set_default_width: 1000,
 
             Overlay {
+                add_overlay = &WindowHandle {
+                    set_halign: Align::Fill,
+                    set_valign: Align::Start,
+                    set_height_request: 20,
+                },
                 add_overlay = &WindowControls {
                     set_halign: Align::End,
                     set_valign: Align::Start,
