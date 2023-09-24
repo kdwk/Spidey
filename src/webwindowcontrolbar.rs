@@ -49,7 +49,6 @@ impl FactoryComponent for WebWindowControlBar {
     type Output = WebWindowControlBarOutput;
     type CommandOutput = ();
     type Widgets = WebWindowControlBarWidgets;
-    type ParentInput = AppInput;
     type ParentWidget = Box;
 
     view! {
@@ -160,11 +159,5 @@ impl FactoryComponent for WebWindowControlBar {
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
         }
-    }
-
-    fn forward_to_parent(_output: Self::Output) -> Option<Self::ParentInput> {
-        Some(match _output {
-            WebWindowControlBarOutput::Remove(id) => AppInput::RemoveWebWindowControlBar(id),
-        })
     }
 }

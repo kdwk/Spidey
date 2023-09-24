@@ -91,6 +91,12 @@ impl Component for WebWindow {
                                 new_webview.into()
 
                             },
+                            connect_context_menu[sender] => move |this_webview, proposed_context_menu, _hit_test_result| {
+                                for item in proposed_context_menu.items() {
+                                    dbg!(item.stock_action());
+                                }
+                                false
+                            }
                         }
                     }
                 }
@@ -98,7 +104,7 @@ impl Component for WebWindow {
 
             connect_close_request[sender] => move |_| {
                 sender.output(WebWindowOutput::Close).unwrap();
-                gtk::Inhibit(true)
+                glib::Propagation::Stop
             } ,
 
             present: (),

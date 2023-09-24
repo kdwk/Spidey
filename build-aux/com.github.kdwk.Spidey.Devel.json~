@@ -1,7 +1,7 @@
 {
     "id" : "com.github.kdwk.Spidey.Devel",
     "runtime" : "org.gnome.Platform",
-    "runtime-version" : "45beta",
+    "runtime-version" : "44",
     "sdk" : "org.gnome.Sdk",
     "sdk-extensions" : [
         "org.freedesktop.Sdk.Extension.rust-stable",
@@ -18,7 +18,8 @@
         "--device=dri",
         "--env=RUST_LOG=spidey=debug",
         "--env=G_MESSAGES_DEBUG=none",
-        "--env=RUST_BACKTRACE=1"
+        "--env=RUST_BACKTRACE=1",
+        "--env=WEBKIT_DISABLE_DMABUF_RENDERER=1"
     ],
     "build-options" : {
         "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm15/bin",

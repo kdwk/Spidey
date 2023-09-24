@@ -116,7 +116,14 @@ impl SimpleComponent for App {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let webwindowcontrolbars = FactoryVecDeque::new(gtk::Box::default(), sender.input_sender());
+        let webwindowcontrolbars = FactoryVecDeque::builder(Box::default()).launch().forward(
+            sender.input_sender(),
+            |output| match output {
+                WebWindowControlBarOutput::Remove(index) => {
+                    AppInput::RemoveWebWindowControlBar(index)
+                }
+            },
+        );
         let model = App {
             webwindowcontrolbars: webwindowcontrolbars,
             url_entry_buffer: EntryBuffer::default(),
