@@ -26,13 +26,15 @@ jobs:
     name: Flatpak
     runs-on: ubuntu-latest
     container:
-      image: bilelmoussaoui/flatpak-github-actions:gnome-44
+      image: bilelmoussaoui/flatpak-github-actions
       options: --privileged
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@master
     - uses: bilelmoussaoui/flatpak-github-actions/flatpak-builder@v6
       with:
         bundle: spidey.flatpak
         manifest-path: build-aux/com.github.kdwk.Spidey.Devel.json
+        app-id: "com.github.kdwk.Spidey.Devel"
+        runtime-repo: "https://nightly.gnome.org/gnome-nightly.flatpakrepo"
         run-tests: true
         cache-key: flatpak-builder-${{ github.sha }}
