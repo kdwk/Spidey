@@ -35,11 +35,11 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: Install dependencies
-      if ${{ matrix.arch != 'x86_64' }}
+      if: ${{ matrix.arch != 'x86_64' }}
       run: |
         dnf -y install docker
     - name: Set up QEMU
-      if ${{ matrix.arch != 'x86_64' }}
+      if: ${{ matrix.arch != 'x86_64' }}
       id: qemu
       uses: docker/setup-qemu-action@v3
       with:
