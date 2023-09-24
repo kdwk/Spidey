@@ -23,7 +23,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   flatpak:
-    name: Flatpak
+    name: Flatpak x86_64
     runs-on: ubuntu-latest
     container:
       image: bilelmoussaoui/flatpak-github-actions
@@ -34,7 +34,8 @@ jobs:
       with:
         bundle: spidey.flatpak
         manifest-path: build-aux/com.github.kdwk.Spidey.Devel.json
-        app-id: "com.github.kdwk.Spidey.Devel"
-        runtime-repo: "https://nightly.gnome.org/gnome-nightly.flatpakrepo"
+        repository-name: "gnome-nightly"
+        repository-url: "https://nightly.gnome.org/gnome-nightly.flatpakrepo"
         run-tests: true
         cache-key: flatpak-builder-${{ github.sha }}
+        arch: "x86_64"
