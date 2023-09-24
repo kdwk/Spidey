@@ -26,7 +26,7 @@ jobs:
     name: Flatpak x86_64
     runs-on: ubuntu-latest
     container:
-      image: bilelmoussaoui/flatpak-github-actions
+      image: bilelmoussaoui/flatpak-github-actions:gnome-nightly
       options: --privileged
     steps:
     - uses: actions/checkout@master
@@ -34,8 +34,6 @@ jobs:
       with:
         bundle: spidey.flatpak
         manifest-path: build-aux/com.github.kdwk.Spidey.Devel.json
-        repository-name: "gnome-nightly"
-        repository-url: "https://nightly.gnome.org/gnome-nightly.flatpakrepo"
         run-tests: true
         cache-key: flatpak-builder-${{ github.sha }}
         arch: "x86_64"
