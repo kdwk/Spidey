@@ -1,11 +1,11 @@
 {
-    "id" : "com.github.kdwk.Spidey.Devel",
-    "runtime" : "org.gnome.Sdk",
-    "runtime-version" : "master",
+    "id" : "com.github.kdwk.Spidey",
+    "runtime" : "org.gnome.Platform",
+    "runtime-version" : "44",
     "sdk" : "org.gnome.Sdk",
     "sdk-extensions" : [
         "org.freedesktop.Sdk.Extension.rust-stable",
-        "org.freedesktop.Sdk.Extension.llvm16"
+        "org.freedesktop.Sdk.Extension.llvm15"
     ],
     "command" : "spidey",
     "finish-args" : [
@@ -21,8 +21,8 @@
         "--env=RUST_BACKTRACE=1"
     ],
     "build-options" : {
-        "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm16/bin",
-        "prepend-ld-library-path" : "/usr/lib/sdk/llvm16/lib",
+        "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm15/bin",
+        "prepend-ld-library-path" : "/usr/lib/sdk/llvm15/lib",
         "build-args" : [
             "--share=network"
         ],
@@ -44,7 +44,7 @@
             "buildsystem" : "meson",
             "run-tests" : true,
             "config-opts" : [
-                "-Dprofile=development"
+                "-Dprofile=default"
             ],
             "sources" : [
                 {
