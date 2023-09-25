@@ -203,10 +203,14 @@ impl Component for WebWindow {
                         small_web_window_widget_clone
                             .set_title(Some(&title.unwrap_or(String::from(""))[..]));
                     });
-                let small_web_window_widget_clone = smallwebwindow.widgets().small_web_window.clone();
-                smallwebwindow.model().web_view.connect_close(move |this_webview| {
-                    small_web_window_widget_clone.close();
-                });
+                let small_web_window_widget_clone =
+                    smallwebwindow.widgets().small_web_window.clone();
+                smallwebwindow
+                    .model()
+                    .web_view
+                    .connect_close(move |this_webview| {
+                        small_web_window_widget_clone.close();
+                    });
             }
             WebWindowInput::TitleChanged(title) => {
                 widgets.web_window.set_title(Some(title.as_str()));
