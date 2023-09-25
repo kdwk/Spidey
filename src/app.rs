@@ -2,7 +2,8 @@
 #![allow(unused_variables)]
 use relm4::actions::AccelsPlus;
 use relm4::adw::{
-    prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
+    prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ToolbarView, ViewStack,
+    Window,
 };
 use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, EntryIconPosition, InputHints,
@@ -35,8 +36,8 @@ impl SimpleComponent for App {
 
     view! {
         Window {
-            set_default_height: 500,
-            set_default_width: 400,
+            set_default_height: 510,
+            set_default_width: 370,
             set_title: Some("Spidey"),
             add_css_class?: if PROFILE == "Devel" {
                 Some("devel")
@@ -44,48 +45,46 @@ impl SimpleComponent for App {
                 None
             },
 
-            Box {
-                set_orientation: Orientation::Vertical,
-
-                HeaderBar {
+            ToolbarView {
+                add_top_bar = &HeaderBar {
                     set_decoration_layout: Some(":close"),
                     add_css_class: "flat",
                 },
 
-                Box {
-                    set_orientation: Orientation::Vertical,
-                    set_spacing: 3,
-                    set_margin_all: 5,
+                add_top_bar = &Box {
+                    add_css_class: "toolbar",
+                    set_margin_top: 5,
+                    set_orientation: Orientation::Horizontal,
+                    set_hexpand: true,
+                    set_halign: Align::Fill,
 
-                    Box {
-                        set_orientation: Orientation::Horizontal,
+                    #[name(url_entry)]
+                    Entry {
                         set_hexpand: true,
-                        set_margin_all: 5,
                         set_halign: Align::Fill,
-
-                        #[name(url_entry)]
-                        Entry {
-                            set_hexpand: true,
-                            set_halign: Align::Fill,
-                            set_margin_all: 5,
-                            #[watch]
-                            set_buffer: &model.url_entry_buffer,
-                            set_placeholder_text: Some("Search the web or enter a link"),
-                            set_input_purpose: InputPurpose::Url,
-                            set_input_hints: InputHints::NO_SPELLCHECK,
-                            connect_activate => AppInput::NewWebWindow,
-                        },
-
-                        #[name(add_btn)]
-                        Button {
-                            set_margin_all: 5,
-                            set_halign: Align::End,
-                            set_icon_name: "plus",
-                            set_tooltip_text: Some("New Web Window"),
-                            connect_clicked => AppInput::NewWebWindow,
-                        }
+                        set_margin_start: 5,
+                        set_margin_end: 0,
+                        #[watch]
+                        set_buffer: &model.url_entry_buffer,
+                        set_placeholder_text: Some("Search the web or enter a link"),
+                        set_input_purpose: InputPurpose::Url,
+                        set_input_hints: InputHints::NO_SPELLCHECK,
+                        connect_activate => AppInput::NewWebWindow,
                     },
 
+                    #[name(add_btn)]
+                    Button {
+                        set_margin_start: 5,
+                        set_margin_end: 5,
+                        set_halign: Align::End,
+                        set_icon_name: "plus",
+                        set_tooltip_text: Some("New Web Window"),
+                        connect_clicked => AppInput::NewWebWindow,
+                    }
+                },
+
+                #[wrap(Some)]
+                set_content = &ScrolledWindow {
                     ScrolledWindow {
                         set_vexpand: true,
 
