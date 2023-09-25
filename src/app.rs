@@ -157,7 +157,7 @@ impl Component for App {
                 match final_url_option {
                     Some(final_url) => {
                         self.webwindowcontrolbars.guard().push_back(final_url);
-                        self.url_entry_buffer = EntryBuffer::default();
+                        self.url_entry_buffer.set_text("");
                     }
                     None => {}
                 }
