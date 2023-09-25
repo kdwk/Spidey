@@ -2,8 +2,8 @@
 #![allow(unused_variables)]
 use relm4::actions::AccelsPlus;
 use relm4::adw::{
-    prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ToolbarView, ViewStack,
-    Window,
+    prelude::*, AboutWindow, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay,
+    ToolbarView, ViewStack, Window,
 };
 use relm4::gtk::{
     prelude::*, Align, Box, Button, Entry, EntryBuffer, EntryIconPosition, InputHints,
@@ -26,13 +26,15 @@ pub(super) struct App {
 pub enum AppInput {
     NewWebWindow, // Also handles adding a WebWindowControlBar
     RemoveWebWindowControlBar(DynamicIndex),
+    ShowAboutWindow,
 }
 
 #[relm4::component(pub)]
-impl SimpleComponent for App {
+impl Component for App {
     type Init = ();
     type Input = AppInput;
     type Output = ();
+    type CommandOutput = ();
 
     view! {
         Window {
@@ -49,6 +51,11 @@ impl SimpleComponent for App {
                 add_top_bar = &HeaderBar {
                     set_decoration_layout: Some(":close"),
                     add_css_class: "flat",
+
+                    pack_start = &Button {
+                        set_icon_name: "about",
+                        connect_clicked => AppInput::ShowAboutWindow,
+                    }
                 },
 
                 add_top_bar = &Box {
@@ -79,6 +86,7 @@ impl SimpleComponent for App {
                         set_halign: Align::End,
                         set_icon_name: "plus",
                         set_tooltip_text: Some("New Web Window"),
+                        add_css_class: "raised",
                         connect_clicked => AppInput::NewWebWindow,
                     }
                 },
@@ -135,7 +143,13 @@ impl SimpleComponent for App {
         }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: ComponentSender<Self>,
+        root: &Self::Root,
+    ) {
         match message {
             AppInput::NewWebWindow => {
                 let url_processed_result = process_url(String::from(self.url_entry_buffer.text()));
@@ -151,6 +165,20 @@ impl SimpleComponent for App {
 
             AppInput::RemoveWebWindowControlBar(id) => {
                 self.webwindowcontrolbars.guard().remove(id.current_index());
+            }
+
+            AppInput::ShowAboutWindow => {
+                AboutWindow::builder()
+                    .transient_for(root)
+                    .application_icon("application-x-executable")
+                    .developer_name("Kdwk")
+                    .version("1.0")
+                    .comments("World Wide Web-crawler")
+                    .website("https://github.com/kdwk/Spidey")
+                    .issue_url("https://github.com/kdwk/Spidey/issues")
+                    .copyright("© 2023 Kendrew Leung")
+                    .build()
+                    .present();
             }
         }
     }
