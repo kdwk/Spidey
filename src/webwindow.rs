@@ -11,7 +11,10 @@ use relm4::gtk::{
 };
 use relm4::{factory::FactoryVecDeque, prelude::*};
 use url::Url;
-use webkit6::{glib, prelude::*, CookiePersistentStorage, NavigationAction, Settings, WebView};
+use webkit6::{
+    glib, prelude::*, ContextMenuAction, CookiePersistentStorage, NavigationAction, Settings,
+    WebView,
+};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
@@ -96,12 +99,6 @@ impl Component for WebWindow {
                                 new_webview.into()
 
                             },
-                            connect_context_menu[sender] => move |this_webview, proposed_context_menu, _hit_test_result| {
-                                for item in proposed_context_menu.items() {
-                                    dbg!(item.stock_action());
-                                }
-                                false
-                            }
                         }
                     }
                 }
@@ -123,13 +120,15 @@ impl Component for WebWindow {
     ) -> ComponentParts<Self> {
         let model = WebWindow { url: init };
         let widgets = view_output!();
-        let web_view_settings: Settings = Settings::new();
-        web_view_settings.set_media_playback_requires_user_gesture(true);
-        if PROFILE == "Devel" {
-            web_view_settings.set_enable_developer_extras(true);
-            widgets.web_view.set_settings(&web_view_settings);
-        } else {
-            widgets.web_view.set_settings(&web_view_settings);
+        let web_view_settings_option = webkit6::prelude::WebViewExt::settings(&widgets.web_view);
+        match web_view_settings_option {
+            Some(web_view_settings) => {
+                web_view_settings.set_media_playback_requires_user_gesture(true);
+                if PROFILE == "Devel" {
+                    web_view_settings.set_enable_developer_extras(true);
+                }
+            }
+            None => {}
         }
         let network_session = widgets.web_view.network_session();
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
