@@ -147,6 +147,7 @@ impl Component for WebWindow {
                         //TODO: add button to open file
                     });
                 });
+                session.set_itp_enabled(true);
                 let cookie_manager = session.cookie_manager();
                 match cookie_manager {
                     Some(cookie_manager) => {
