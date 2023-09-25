@@ -182,9 +182,14 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                let height_over_width = widgets.web_window.height() / widgets.web_window.width();
+                let height_over_width =
+                    widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
+                println!("{height_over_width}");
                 let smallwebwindow_width = widgets.web_window.width() / 2;
-                let smallwebwindow_height = smallwebwindow_width * height_over_width + 100;
+                println!("{smallwebwindow_width}");
+                let smallwebwindow_height =
+                    (smallwebwindow_width as f32 * height_over_width + 100.0) as i32;
+                println!("{smallwebwindow_height}");
                 let smallwebwindow = SmallWebWindow::builder()
                     .transient_for(root)
                     .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
