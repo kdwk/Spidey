@@ -2,6 +2,7 @@
 #![allow(unused_variables)]
 use std::fs::{create_dir_all, File};
 
+use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::{
     prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
 };
@@ -39,6 +40,8 @@ pub enum WebWindowOutput {
     Close,
 }
 
+relm4::new_action_group!(WebWindowActionGroup, "win");
+relm4::new_stateless_action!(GoBack, WebWindowActionGroup, "go_back");
 #[relm4::component(pub)]
 impl Component for WebWindow {
     type Init = String;
@@ -167,6 +170,15 @@ impl Component for WebWindow {
             }
             None => {}
         }
+        let app = relm4::main_adw_application();
+        let mut action_group = RelmActionGroup::<WebWindowActionGroup>::new();
+        let web_view_widget_clone = widgets.web_view.clone();
+        let go_back: RelmAction<GoBack> = RelmAction::new_stateless(move |_| {
+            web_view_widget_clone.go_back();
+        });
+        app.set_accelerators_for_action::<GoBack>(&["<Alt>leftarrow"]);
+        action_group.add_action(go_back);
+        action_group.register_for_widget(&widgets.web_window);
         ComponentParts {
             model: model,
             widgets: widgets,

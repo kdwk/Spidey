@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use relm4::actions::AccelsPlus;
+use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::{
     prelude::*, AboutWindow, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay,
     ToolbarView, ViewStack, Window,
@@ -22,6 +22,8 @@ pub(super) struct App {
     webwindowcontrolbars: FactoryVecDeque<WebWindowControlBar>,
 }
 
+relm4::new_action_group!(AppWindowActionGroup, "win");
+relm4::new_stateless_action!(ShowAbout, AppWindowActionGroup, "show_about");
 #[derive(Debug)]
 pub enum AppInput {
     NewWebWindow, // Also handles adding a WebWindowControlBar
@@ -137,6 +139,23 @@ impl Component for App {
         };
         let webwindowcontrolbar_box = model.webwindowcontrolbars.widget();
         let widgets = view_output!();
+        // let app = relm4::main_adw_application();
+        // let mut action_group = RelmActionGroup::<AppWindowActionGroup>::new();
+        // let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
+        //     AboutWindow::builder()
+        //     .application_icon("application-x-executable")
+        //     .developer_name("Kdwk")
+        //     .version("1.0")
+        //     .comments("World Wide Web-crawler")
+        //     .website("https://github.com/kdwk/Spidey")
+        //     .issue_url("https://github.com/kdwk/Spidey/issues")
+        //     .copyright("© 2023 Kendrew Leung")
+        //     .build()
+        //     .present();
+        // });
+        // app.set_accels_for_action("show_about", &["<Primary>A"]);
+        // action_group.add_action(show_about);
+        // action_group.register_for_widget(root);
         ComponentParts {
             model: model,
             widgets: widgets,
