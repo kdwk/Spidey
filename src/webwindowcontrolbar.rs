@@ -1,16 +1,8 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use relm4::adw::{
-    prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
-};
-use relm4::gtk::{
-    pango::EllipsizeMode, prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints,
-    InputPurpose, Label, Orientation, Overlay, PackType, ScrolledWindow, WindowControls,
-};
-use relm4::{factory::FactoryVecDeque, prelude::*};
-use url::Url;
-use webkit6::{glib, prelude::*, NavigationAction, Settings, WebView};
-use webkit6_sys::webkit_web_view_get_settings;
+use relm4::gtk::prelude::*;
+use relm4::prelude::*;
+use webkit6::prelude::*;
 
 use crate::app::AppInput;
 use crate::config::{APP_ID, PROFILE};
@@ -49,16 +41,16 @@ impl FactoryComponent for WebWindowControlBar {
     type Output = WebWindowControlBarOutput;
     type CommandOutput = ();
     type Widgets = WebWindowControlBarWidgets;
-    type ParentWidget = Box;
+    type ParentWidget = gtk::Box;
 
     view! {
-        Box {
-            set_orientation: Orientation::Horizontal,
+        gtk::Box {
+            set_orientation: gtk::Orientation::Horizontal,
             set_spacing: 0,
             set_margin_all: 5,
 
             #[name(back_btn)]
-            Button {
+            gtk::Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
                 set_icon_name: "left",
@@ -69,7 +61,7 @@ impl FactoryComponent for WebWindowControlBar {
             },
 
             #[name(forward_btn)]
-            Button {
+            gtk::Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
                 set_icon_name: "right",
@@ -80,7 +72,7 @@ impl FactoryComponent for WebWindowControlBar {
             },
 
             #[name(refresh_btn)]
-            Button {
+            gtk::Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
                 set_icon_name: "refresh",
@@ -89,18 +81,18 @@ impl FactoryComponent for WebWindowControlBar {
             },
 
             #[name(label)]
-            Label {
+            gtk::Label {
                 set_hexpand: true,
-                set_halign: Align::Start,
+                set_halign: gtk::Align::Start,
                 set_margin_start: 5,
                 set_margin_end: 5,
-                set_ellipsize: EllipsizeMode::End,
+                set_ellipsize: gtk::pango::EllipsizeMode::End,
                 #[watch]
                 set_label: &self.label,
             },
 
             #[name(focus_btn)]
-            Button {
+            gtk::Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
                 add_css_class: "toolbar-button",
@@ -110,7 +102,7 @@ impl FactoryComponent for WebWindowControlBar {
             },
 
             #[name(close_btn)]
-            Button {
+            gtk::Button {
                 add_css_class: "circular",
                 add_css_class: "flat",
                 add_css_class: "toolbar-button",

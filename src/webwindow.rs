@@ -1,26 +1,17 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use directories;
 use std::fs::{create_dir_all, File};
 
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
-use relm4::adw::{
-    prelude::*, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay, ViewStack, Window,
-};
-use relm4::gtk::{
-    prelude::*, Align, Box, Button, Entry, EntryBuffer, InputHints, InputPurpose, Label,
-    Orientation, Overlay, PackType, ScrolledWindow, WindowControls, WindowHandle,
-};
-use relm4::{factory::FactoryVecDeque, prelude::*};
-use url::Url;
-use webkit6::{
-    glib, prelude::*, ContextMenuAction, CookiePersistentStorage, NavigationAction, Settings,
-    WebView,
-};
+use relm4::adw::prelude::*;
+use relm4::gtk::prelude::*;
+use relm4::prelude::*;
+use webkit6::prelude::*;
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
 use crate::smallwebwindow::*;
-use directories;
 
 pub struct WebWindow {
     pub url: String,
@@ -28,7 +19,7 @@ pub struct WebWindow {
 
 #[derive(Debug)]
 pub enum WebWindowInput {
-    CreateSmallWebWindow(WebView),
+    CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     InsecureContentDetected,
 }
@@ -51,31 +42,31 @@ impl Component for WebWindow {
 
     view! {
         #[name(web_window)]
-        Window {
+        adw::Window {
             set_default_height: 1000,
             set_default_width: 1000,
 
-            Overlay {
-                add_overlay = &WindowHandle {
-                    set_halign: Align::Fill,
-                    set_valign: Align::Start,
+            gtk::Overlay {
+                add_overlay = &gtk::WindowHandle {
+                    set_halign: gtk::Align::Fill,
+                    set_valign: gtk::Align::Start,
                     set_height_request: 20,
                 },
-                add_overlay = &WindowControls {
-                    set_halign: Align::End,
-                    set_valign: Align::Start,
+                add_overlay = &gtk::WindowControls {
+                    set_halign: gtk::Align::End,
+                    set_valign: gtk::Align::Start,
                     set_margin_top: 5,
                     set_margin_end: 5,
-                    set_side: PackType::End,
+                    set_side: gtk::PackType::End,
                     add_css_class: "webwindow-close",
                 },
                 #[name(toast_overlay)]
-                ToastOverlay {
-                    Box {
-                        set_orientation: Orientation::Vertical,
+                adw::ToastOverlay {
+                    gtk::Box {
+                        set_orientation: gtk::Orientation::Vertical,
 
                         #[name(web_view)]
-                        WebView {
+                        webkit6::WebView {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_load_changed[sender] => move |this_webview, _load_event| {
@@ -92,7 +83,7 @@ impl Component for WebWindow {
                                 sender.input(WebWindowInput::InsecureContentDetected);
                             },
                             connect_create[sender] => move |this_webview, _navigation_action| {
-                                let new_webview = glib::Object::builder::<WebView>().property("related-view", this_webview).build();
+                                let new_webview = webkit6::glib::Object::builder::<webkit6::WebView>().property("related-view", this_webview).build();
                                 new_webview.set_vexpand(true);
                                 let sender_clone = sender.clone();
                                 let new_webview_clone = new_webview.clone();
@@ -109,7 +100,7 @@ impl Component for WebWindow {
 
             connect_close_request[sender] => move |_| {
                 sender.output(WebWindowOutput::Close).unwrap();
-                glib::Propagation::Stop
+                gtk::glib::Propagation::Stop
             } ,
 
             present: (),
@@ -142,11 +133,12 @@ impl Component for WebWindow {
                     let toast_overlay_widget_clone_clone_2 = toast_overlay_widget_clone.clone();
                     download_object.connect_failed(move |this_download_object, error| {
                         eprintln!("{}", error.to_string());
-                        toast_overlay_widget_clone_clone_1.add_toast(Toast::new("Download failed"));
+                        toast_overlay_widget_clone_clone_1
+                            .add_toast(adw::Toast::new("Download failed"));
                     });
                     download_object.connect_finished(move |this_download_object| {
                         toast_overlay_widget_clone_clone_2
-                            .add_toast(Toast::new("File saved to Downloads folder"));
+                            .add_toast(adw::Toast::new("File saved to Downloads folder"));
                         //TODO: add button to open file
                     });
                 });
@@ -161,7 +153,7 @@ impl Component for WebWindow {
                             let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
                             cookie_manager.set_persistent_storage(
                                 &cookiesdb_file_path.into_os_string().into_string().unwrap()[..],
-                                CookiePersistentStorage::Sqlite,
+                                webkit6::CookiePersistentStorage::Sqlite,
                             );
                         }
                     }
@@ -230,7 +222,7 @@ impl Component for WebWindow {
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
-                .add_toast(Toast::new("This page is insecure")),
+                .add_toast(adw::Toast::new("This page is insecure")),
         }
     }
 }

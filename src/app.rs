@@ -1,25 +1,17 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
-use relm4::adw::{
-    prelude::*, AboutWindow, HeaderBar, MessageDialog, StatusPage, Toast, ToastOverlay,
-    ToolbarView, ViewStack, Window,
-};
-use relm4::gtk::{
-    prelude::*, Align, Box, Button, Entry, EntryBuffer, EntryIconPosition, InputHints,
-    InputPurpose, Label, Orientation, Overlay, PackType, ScrolledWindow, WindowControls,
-};
-use relm4::{factory::FactoryVecDeque, prelude::*};
+use relm4::adw::prelude::*;
+use relm4::gtk::prelude::*;
+use relm4::prelude::*;
 use url::Url;
-use webkit6::{glib, prelude::*, NavigationAction, Settings, WebView};
-use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
 use crate::webwindowcontrolbar::*;
 
 pub(super) struct App {
-    url_entry_buffer: EntryBuffer,
-    webwindowcontrolbars: FactoryVecDeque<WebWindowControlBar>,
+    url_entry_buffer: gtk::EntryBuffer,
+    webwindowcontrolbars: relm4::factory::FactoryVecDeque<WebWindowControlBar>,
 }
 
 relm4::new_action_group!(AppWindowActionGroup, "win");
@@ -39,7 +31,7 @@ impl Component for App {
     type CommandOutput = ();
 
     view! {
-        Window {
+        adw::Window {
             set_default_height: 510,
             set_default_width: 370,
             set_title: Some("Spidey"),
@@ -49,43 +41,43 @@ impl Component for App {
                 None
             },
 
-            ToolbarView {
-                add_top_bar = &HeaderBar {
+            adw::ToolbarView {
+                add_top_bar = &adw::HeaderBar {
                     set_decoration_layout: Some(":close"),
                     add_css_class: "flat",
 
-                    pack_start = &Button {
+                    pack_start = &gtk::Button {
                         set_icon_name: "about",
                         connect_clicked => AppInput::ShowAboutWindow,
                     }
                 },
 
-                add_top_bar = &Box {
+                add_top_bar = &gtk::Box {
                     add_css_class: "toolbar",
                     set_margin_top: 5,
-                    set_orientation: Orientation::Horizontal,
+                    set_orientation: gtk::Orientation::Horizontal,
                     set_hexpand: true,
-                    set_halign: Align::Fill,
+                    set_halign: gtk::Align::Fill,
 
                     #[name(url_entry)]
-                    Entry {
+                    gtk::Entry {
                         set_hexpand: true,
-                        set_halign: Align::Fill,
+                        set_halign: gtk::Align::Fill,
                         set_margin_start: 5,
                         set_margin_end: 0,
                         #[watch]
                         set_buffer: &model.url_entry_buffer,
                         set_placeholder_text: Some("Search the web or enter a link"),
-                        set_input_purpose: InputPurpose::Url,
-                        set_input_hints: InputHints::NO_SPELLCHECK,
+                        set_input_purpose: gtk::InputPurpose::Url,
+                        set_input_hints: gtk::InputHints::NO_SPELLCHECK,
                         connect_activate => AppInput::NewWebWindow,
                     },
 
                     #[name(add_btn)]
-                    Button {
+                    gtk::Button {
                         set_margin_start: 5,
                         set_margin_end: 5,
-                        set_halign: Align::End,
+                        set_halign: gtk::Align::End,
                         set_icon_name: "plus",
                         set_tooltip_text: Some("New Web Window"),
                         add_css_class: "raised",
@@ -94,25 +86,22 @@ impl Component for App {
                 },
 
                 #[wrap(Some)]
-                set_content = &ScrolledWindow {
-                    ScrolledWindow {
-                        set_vexpand: true,
+                set_content = &gtk::ScrolledWindow {
+                    set_vexpand: true,
 
-                        Box {
-                            set_orientation: Orientation::Horizontal,
-                            set_hexpand: true,
-                            set_halign: Align::Fill,
+                    gtk::Box {
+                        set_orientation: gtk::Orientation::Horizontal,
+                        set_hexpand: true,
+                        set_halign: gtk::Align::Fill,
 
-                            Box {
-                                set_orientation: Orientation::Vertical,
+                        gtk::Box {
+                            set_orientation: gtk::Orientation::Vertical,
 
-                                #[local_ref]
-                                webwindowcontrolbar_box -> Box {
-                                    set_orientation: Orientation::Vertical,
-                                    set_spacing: 0,
-                                }
+                            #[local_ref]
+                            webwindowcontrolbar_box -> gtk::Box {
+                                set_orientation: gtk::Orientation::Vertical,
+                                set_spacing: 0,
                             }
-
                         }
                     }
                 }
@@ -125,37 +114,36 @@ impl Component for App {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let webwindowcontrolbars = FactoryVecDeque::builder(Box::default()).launch().forward(
-            sender.input_sender(),
-            |output| match output {
+        let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder(gtk::Box::default())
+            .launch()
+            .forward(sender.input_sender(), |output| match output {
                 WebWindowControlBarOutput::Remove(index) => {
                     AppInput::RemoveWebWindowControlBar(index)
                 }
-            },
-        );
+            });
         let model = App {
             webwindowcontrolbars: webwindowcontrolbars,
-            url_entry_buffer: EntryBuffer::default(),
+            url_entry_buffer: gtk::EntryBuffer::default(),
         };
         let webwindowcontrolbar_box = model.webwindowcontrolbars.widget();
         let widgets = view_output!();
-        // let app = relm4::main_adw_application();
-        // let mut action_group = RelmActionGroup::<AppWindowActionGroup>::new();
-        // let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
-        //     AboutWindow::builder()
-        //     .application_icon("application-x-executable")
-        //     .developer_name("Kdwk")
-        //     .version("1.0")
-        //     .comments("World Wide Web-crawler")
-        //     .website("https://github.com/kdwk/Spidey")
-        //     .issue_url("https://github.com/kdwk/Spidey/issues")
-        //     .copyright("© 2023 Kendrew Leung")
-        //     .build()
-        //     .present();
-        // });
-        // app.set_accels_for_action("show_about", &["<Primary>A"]);
-        // action_group.add_action(show_about);
-        // action_group.register_for_widget(root);
+        let app = relm4::main_adw_application();
+        let mut action_group = RelmActionGroup::<AppWindowActionGroup>::new();
+        let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
+            adw::AboutWindow::builder()
+                .application_icon("application-x-executable")
+                .developer_name("Kdwk")
+                .version("1.0")
+                .comments("World Wide Web-crawler")
+                .website("https://github.com/kdwk/Spidey")
+                .issue_url("https://github.com/kdwk/Spidey/issues")
+                .copyright("© 2023 Kendrew Leung")
+                .build()
+                .present();
+        });
+        app.set_accels_for_action("show_about", &["<Alt>A"]);
+        action_group.add_action(show_about);
+        action_group.register_for_widget(root);
         ComponentParts {
             model: model,
             widgets: widgets,
@@ -187,7 +175,7 @@ impl Component for App {
             }
 
             AppInput::ShowAboutWindow => {
-                AboutWindow::builder()
+                adw::AboutWindow::builder()
                     .transient_for(root)
                     .application_icon("application-x-executable")
                     .developer_name("Kdwk")
