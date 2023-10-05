@@ -114,8 +114,7 @@ impl Component for WebWindow {
     ) -> ComponentParts<Self> {
         let model = WebWindow { url: init };
         let widgets = view_output!();
-        let web_view_settings_option = webkit6::prelude::WebViewExt::settings(&widgets.web_view);
-        match web_view_settings_option {
+        match webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
             Some(web_view_settings) => {
                 web_view_settings.set_media_playback_requires_user_gesture(true);
                 if PROFILE == "Devel" {
@@ -124,9 +123,12 @@ impl Component for WebWindow {
             }
             None => {}
         }
-        let network_session = widgets.web_view.network_session();
+        match widgets.web_view.user_content_manager() {
+            Some(user_content_manager) => {}
+            None => {}
+        }
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
-        match network_session {
+        match widgets.web_view.network_session() {
             Some(session) => {
                 session.connect_download_started(move |this_session, download_object| {
                     let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
