@@ -130,6 +130,7 @@ impl Component for WebWindow {
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
         match widgets.web_view.network_session() {
             Some(session) => {
+                // Handle downloads
                 session.connect_download_started(move |this_session, download_object| {
                     let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
                     let toast_overlay_widget_clone_clone_2 = toast_overlay_widget_clone.clone();
@@ -144,7 +145,9 @@ impl Component for WebWindow {
                         //TODO: add button to open file
                     });
                 });
+                // Enable Intelligent Tracking Prevention
                 session.set_itp_enabled(true);
+                // Handle persistent cookies
                 let cookie_manager = session.cookie_manager();
                 match cookie_manager {
                     Some(cookie_manager) => {
