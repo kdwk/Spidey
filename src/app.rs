@@ -1,9 +1,16 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use curl::easy::Easy;
+use directories;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
+use std::io::Write;
+use std::{
+    fs::{create_dir_all, File, OpenOptions},
+    thread,
+};
 use url::Url;
 
 use crate::config::{APP_ID, PROFILE};
@@ -114,6 +121,34 @@ impl Component for App {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
+        thread::spawn(|| {
+            if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
+                create_dir_all(dir.data_dir()).unwrap();
+                let adblock_json_file_path = dir
+                    .data_dir()
+                    .join("block.json")
+                    .into_os_string()
+                    .into_string()
+                    .unwrap();
+                File::create(&adblock_json_file_path.clone()[..]);
+                let mut adblock_json_file = OpenOptions::new()
+                    .write(true)
+                    .open(&adblock_json_file_path[..])
+                    .unwrap();
+                let mut download_blocklist_operation = Easy::new();
+                download_blocklist_operation.url(
+                    "https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json",
+                )
+                .unwrap();
+                download_blocklist_operation
+                    .write_function(move |data| {
+                        adblock_json_file.write_all(data).unwrap();
+                        Ok(data.len())
+                    })
+                    .unwrap();
+                download_blocklist_operation.perform().unwrap();
+            }
+        });
         let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder(gtk::Box::default())
             .launch()
             .forward(sender.input_sender(), |output| match output {
