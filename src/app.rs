@@ -19,6 +19,7 @@ use crate::webwindowcontrolbar::*;
 pub(super) struct App {
     url_entry_buffer: gtk::EntryBuffer,
     webwindowcontrolbars: relm4::factory::FactoryVecDeque<WebWindowControlBar>,
+    user_content_filter_store_option: Option<webkit6::UserContentFilterStore>,
 }
 
 relm4::new_action_group!(AppWindowActionGroup, "win");
@@ -28,6 +29,7 @@ pub enum AppInput {
     NewWebWindow, // Also handles adding a WebWindowControlBar
     RemoveWebWindowControlBar(DynamicIndex),
     ShowAboutWindow,
+    SetUpUserContentFilterStore,
 }
 
 #[relm4::component(pub)]
@@ -121,12 +123,13 @@ impl Component for App {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        thread::spawn(|| {
+        let sender_clone = sender.clone();
+        thread::spawn(move || {
             if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
                 create_dir_all(dir.data_dir()).unwrap();
                 let adblock_json_file_path = dir
                     .data_dir()
-                    .join("block.json")
+                    .join("adblock.json")
                     .into_os_string()
                     .into_string()
                     .unwrap();
@@ -147,6 +150,7 @@ impl Component for App {
                     })
                     .unwrap();
                 download_blocklist_operation.perform().unwrap();
+                sender_clone.input(AppInput::SetUpUserContentFilterStore);
             }
         });
         let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder(gtk::Box::default())
@@ -159,6 +163,7 @@ impl Component for App {
         let model = App {
             webwindowcontrolbars: webwindowcontrolbars,
             url_entry_buffer: gtk::EntryBuffer::default(),
+            user_content_filter_store_option: None,
         };
         let webwindowcontrolbar_box = model.webwindowcontrolbars.widget();
         let widgets = view_output!();
@@ -221,6 +226,36 @@ impl Component for App {
                     .copyright("© 2023 Kendrew Leung")
                     .build()
                     .present();
+            }
+
+            AppInput::SetUpUserContentFilterStore => {
+                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
+                    let user_content_filter_store_path = &dir
+                        .data_dir()
+                        .join("UserContentFilterStore")
+                        .into_os_string()
+                        .into_string()
+                        .unwrap()[..];
+                    create_dir_all(user_content_filter_store_path).unwrap();
+                    self.user_content_filter_store_option = Some(
+                        webkit6::UserContentFilterStore::new(user_content_filter_store_path),
+                    );
+                    if let Some(user_content_filter_store) = &self.user_content_filter_store_option
+                    {
+                        let adblock_json_file_path = &dir
+                            .data_dir()
+                            .join("adblock.json")
+                            .into_os_string()
+                            .into_string()
+                            .unwrap()[..];
+                        user_content_filter_store.save_from_file(
+                            "adblock",
+                            &webkit6::gio::File::for_path(adblock_json_file_path),
+                            webkit6::gio::Cancellable::NONE,
+                            |_| {},
+                        );
+                    }
+                }
             }
         }
     }
