@@ -14,7 +14,7 @@ use crate::config::{APP_ID, PROFILE};
 use crate::smallwebwindow::*;
 
 pub struct WebWindow {
-    pub url: String,
+    url: String,
 }
 
 #[derive(Debug)]
@@ -35,7 +35,7 @@ relm4::new_action_group!(WebWindowActionGroup, "win");
 relm4::new_stateless_action!(GoBack, WebWindowActionGroup, "go_back");
 #[relm4::component(pub)]
 impl Component for WebWindow {
-    type Init = String;
+    type Init = (String, Option<webkit6::UserContentFilterStore>);
     type Input = WebWindowInput;
     type Output = WebWindowOutput;
     type CommandOutput = ();
@@ -112,8 +112,11 @@ impl Component for WebWindow {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = WebWindow { url: init };
+        // Standard component initialization
+        let model = WebWindow { url: init.0 };
         let widgets = view_output!();
+
+        // Set settings for the WebView
         match webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
             Some(web_view_settings) => {
                 web_view_settings.set_media_playback_requires_user_gesture(true);
@@ -123,10 +126,23 @@ impl Component for WebWindow {
             }
             None => {}
         }
-        match widgets.web_view.user_content_manager() {
-            Some(user_content_manager) => {}
-            None => {}
+
+        // Set up adblock
+        if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
+            if let Some(user_content_filter_store) = init.1 {
+                user_content_filter_store.load(
+                    "adblock",
+                    gtk::gio::Cancellable::NONE,
+                    move |user_content_filter_result| {
+                        if let Ok(user_content_filter) = user_content_filter_result {
+                            user_content_manager.add_filter(&user_content_filter);
+                        }
+                    },
+                );
+            }
         }
+
+        // Handle things related to the Network Session
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
         match widgets.web_view.network_session() {
             Some(session) => {
@@ -145,8 +161,10 @@ impl Component for WebWindow {
                         //TODO: add button to open file
                     });
                 });
+
                 // Enable Intelligent Tracking Prevention
                 session.set_itp_enabled(true);
+
                 // Handle persistent cookies
                 let cookie_manager = session.cookie_manager();
                 match cookie_manager {
@@ -167,6 +185,7 @@ impl Component for WebWindow {
             }
             None => {}
         }
+
         let app = relm4::main_adw_application();
         let mut action_group = RelmActionGroup::<WebWindowActionGroup>::new();
         let web_view_widget_clone = widgets.web_view.clone();

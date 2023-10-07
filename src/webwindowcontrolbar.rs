@@ -16,7 +16,7 @@ pub struct WebWindowControlBar {
     web_view_can_go_forward: bool,
 }
 
-pub type WebWindowControlBarInit = String;
+pub type WebWindowControlBarInit = (String, Option<webkit6::UserContentFilterStore>);
 
 #[derive(Debug)]
 pub enum WebWindowControlBarInput {
@@ -146,7 +146,7 @@ impl FactoryComponent for WebWindowControlBar {
                 });
         Self {
             id: index.clone(),
-            label: init,
+            label: init.0,
             webwindow: new_webwindow,
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
