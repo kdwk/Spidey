@@ -44,7 +44,7 @@ impl Component for App {
     view! {
         adw::Window {
             set_default_height: 510,
-            set_default_width: 370,
+            set_default_width: 400,
             set_title: Some("Spidey"),
             add_css_class?: if PROFILE == "Devel" {
                 Some("devel")

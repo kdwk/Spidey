@@ -25,6 +25,7 @@ pub enum WebWindowControlBarInput {
     Close,
     Refresh,
     Focus,
+    Screenshot,
     LoadChanged((bool, bool)),
     TitleChanged(String),
 }
@@ -91,6 +92,16 @@ impl FactoryComponent for WebWindowControlBar {
                 set_label: &self.label,
             },
 
+            #[name(screenshot_btn)]
+            gtk::Button {
+                add_css_class: "circular",
+                add_css_class: "flat",
+                add_css_class: "toolbar-button",
+                set_icon_name: "screenshooter",
+                set_tooltip_text: Some("Screenshot"),
+                connect_clicked => WebWindowControlBarInput::Screenshot,
+            },
+
             #[name(focus_btn)]
             gtk::Button {
                 add_css_class: "circular",
@@ -122,6 +133,7 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarInput::Back => self.webwindow.widgets().web_view.go_back(),
             WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
             WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
+            WebWindowControlBarInput::Screenshot => {}
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
             WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
                 self.web_view_can_go_back = can_go_back;
