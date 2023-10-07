@@ -125,6 +125,7 @@ impl Component for App {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
+        // Set up adblock filters in another thread
         let sender_clone = sender.clone();
         thread::spawn(move || {
             let gschema_id = if PROFILE == "Devel" {
@@ -178,6 +179,8 @@ impl Component for App {
             // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
             sender_clone.input(AppInput::SetUpUserContentFilterStore);
         });
+
+        // Set up WebWindowControlBars
         let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder(gtk::Box::default())
             .launch()
             .forward(sender.input_sender(), |output| match output {
@@ -185,6 +188,8 @@ impl Component for App {
                     AppInput::RemoveWebWindowControlBar(index)
                 }
             });
+
+        // Standard component initialization procedures
         let model = App {
             webwindowcontrolbars: webwindowcontrolbars,
             url_entry_buffer: gtk::EntryBuffer::default(),
@@ -261,10 +266,16 @@ impl Component for App {
                         .into_os_string()
                         .into_string()
                         .unwrap()[..];
+
+                    // Create the UserContentFilterStore storage location if it doesn't exist
                     create_dir_all(user_content_filter_store_path).unwrap();
+
+                    // Create a new UserContentFilterStore and save to the corresponding field in the struct of self
                     self.user_content_filter_store_option = Some(
                         webkit6::UserContentFilterStore::new(user_content_filter_store_path),
                     );
+
+                    // Save XDG_DATA_DIR/adblock.json into the UserContentFilterStore as a UserContentFilter
                     if let Some(user_content_filter_store) = &self.user_content_filter_store_option
                     {
                         let adblock_json_file_path = &dir
@@ -281,7 +292,7 @@ impl Component for App {
                                         "adblock",
                                         &webkit6::gio::File::for_path(adblock_json_file_path),
                                         webkit6::gio::Cancellable::NONE,
-                                        |_| {},
+                                        |_| {println!("Successfully saved adblock.json into UserContentFilterStore")},
                                     )
                                 } else {
                                     eprintln!("XDG_DATA_DIR/adblock.json is a broken path");
