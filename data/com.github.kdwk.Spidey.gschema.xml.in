@@ -13,5 +13,9 @@
       <default>false</default>
       <summary>Window maximized state</summary>
     </key>
+    <key name="adblock-json-last-updated" type="x">
+      <default>0</default>
+      <summary>Timestamp of when the XDG_DATA_DIR/adblock.json was last downloaded from the Internet</summary>
+    </key>
   </schema>
 </schemalist>

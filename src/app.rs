@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use chrono::offset::Utc;
 use curl::easy::Easy;
 use directories;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
@@ -9,6 +10,7 @@ use relm4::prelude::*;
 use std::io::Write;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
+    path::Path,
     thread,
 };
 use url::Url;
@@ -125,33 +127,56 @@ impl Component for App {
     ) -> ComponentParts<Self> {
         let sender_clone = sender.clone();
         thread::spawn(move || {
-            if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                create_dir_all(dir.data_dir()).unwrap();
-                let adblock_json_file_path = dir
-                    .data_dir()
-                    .join("adblock.json")
-                    .into_os_string()
-                    .into_string()
+            let gschema_id = if PROFILE == "Devel" {
+                "com.github.kdwk.Spidey.Devel"
+            } else {
+                "com.github.kdwk.Spidey"
+            };
+            // Get the GSettings from GSchema file
+            let gsettings = gtk::gio::Settings::new(gschema_id);
+            // Get when the XDG_DATA_DIR/adblock.json file has been last updated
+            let adblock_json_last_updated_timestamp = gsettings.int64("adblock-json-last-updated");
+            // Only download the file from the Internet again if the file has not been updated in the last 7 days
+            if Utc::now().timestamp() > adblock_json_last_updated_timestamp + 7 * 24 * 60 * 60 {
+                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
+                    create_dir_all(dir.data_dir()).unwrap();
+                    let adblock_json_file_path = dir
+                        .data_dir()
+                        .join("adblock.json")
+                        .into_os_string()
+                        .into_string()
+                        .unwrap();
+                    File::create(&adblock_json_file_path.clone()[..]).unwrap();
+                    let mut adblock_json_file = OpenOptions::new()
+                        .write(true)
+                        .open(&adblock_json_file_path[..])
+                        .unwrap();
+                    // Set up and perform curl Easy operation to download the adblock.json file from the Internet
+                    let mut download_blocklist_operation = Easy::new();
+                    download_blocklist_operation.url(
+                        "https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json",
+                    )
                     .unwrap();
-                File::create(&adblock_json_file_path.clone()[..]);
-                let mut adblock_json_file = OpenOptions::new()
-                    .write(true)
-                    .open(&adblock_json_file_path[..])
-                    .unwrap();
-                let mut download_blocklist_operation = Easy::new();
-                download_blocklist_operation.url(
-                    "https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json",
-                )
-                .unwrap();
-                download_blocklist_operation
-                    .write_function(move |data| {
-                        adblock_json_file.write_all(data).unwrap();
-                        Ok(data.len())
-                    })
-                    .unwrap();
-                download_blocklist_operation.perform().unwrap();
-                sender_clone.input(AppInput::SetUpUserContentFilterStore);
+                    download_blocklist_operation
+                        .write_function(move |data| {
+                            // Write the downloaded data to adblock.json file
+                            adblock_json_file.write_all(data).unwrap();
+                            // Return the data length as required by curl
+                            Ok(data.len())
+                        })
+                        .unwrap();
+                    download_blocklist_operation.perform().unwrap();
+                    // Update the last updated time of adblock.json
+                    gsettings
+                        .set_int64("adblock-json-last-updated", Utc::now().timestamp())
+                        .unwrap();
+                }
+            } else {
+                println!("XDG_DATA_DIR/adblock.json is less than 7 days old. No need to re-download from the Internet.")
             }
+            // Set up the UserContentFilterStore no matter if it has been freshly downloaded from the Internet or not
+            // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
+            sender_clone.input(AppInput::SetUpUserContentFilterStore);
         });
         let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder(gtk::Box::default())
             .launch()
@@ -248,12 +273,25 @@ impl Component for App {
                             .into_os_string()
                             .into_string()
                             .unwrap()[..];
-                        user_content_filter_store.save_from_file(
-                            "adblock",
-                            &webkit6::gio::File::for_path(adblock_json_file_path),
-                            webkit6::gio::Cancellable::NONE,
-                            |_| {},
-                        );
+                        match Path::try_exists(Path::new(adblock_json_file_path)) {
+                            // Ok(true): path points to existing entity; Ok(false): path is broken
+                            Ok(path_is_broken) => {
+                                if !path_is_broken {
+                                    user_content_filter_store.save_from_file(
+                                        "adblock",
+                                        &webkit6::gio::File::for_path(adblock_json_file_path),
+                                        webkit6::gio::Cancellable::NONE,
+                                        |_| {},
+                                    )
+                                } else {
+                                    eprintln!("XDG_DATA_DIR/adblock.json is a broken path");
+                                }
+                            }
+                            // Err(_): path cannot be verified to exist or otherwise
+                            Err(_) => {
+                                eprintln!("Cannot verify whether XDG_DATA_DIR/adblock.json exists")
+                            }
+                        }
                     }
                 }
             }
