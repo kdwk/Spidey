@@ -1,5 +1,9 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::path::Path;
+
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
 use webkit6::prelude::*;
@@ -133,7 +137,49 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarInput::Back => self.webwindow.widgets().web_view.go_back(),
             WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
             WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
-            WebWindowControlBarInput::Screenshot => {}
+            WebWindowControlBarInput::Screenshot => self.webwindow.widgets().web_view.snapshot(
+                webkit6::SnapshotRegion::Visible,
+                webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
+                gtk::gio::Cancellable::NONE,
+                |snapshot_result| match snapshot_result {
+                    Ok(texture) => {
+                        if let Some(dir) = directories::UserDirs::new() {
+                            let screenshot_save_path = |suffix: usize| -> String {
+                                let suffix_str = suffix.to_string();
+                                let path = dir
+                                    .picture_dir()
+                                    .unwrap()
+                                    .join(
+                                        "Screenshot".to_owned()
+                                            + if suffix != 0 { &suffix_str[..] } else { "" }
+                                            + ".png",
+                                    )
+                                    .into_os_string()
+                                    .into_string()
+                                    .unwrap();
+                                path
+                            };
+                            let mut suffix: usize = 0;
+                            let screenshot_save_path_final = {
+                                while Path::new(&screenshot_save_path(suffix)[..]).exists() {
+                                    suffix += 1;
+                                }
+                                screenshot_save_path(suffix)
+                            };
+                            let texture_png_bytes = texture.save_to_png_bytes();
+                            File::create(Path::new(&screenshot_save_path_final));
+                            let mut screenshot_file = OpenOptions::new()
+                                .write(true)
+                                .open(Path::new(&screenshot_save_path_final))
+                                .unwrap();
+                            screenshot_file.write_all(&texture_png_bytes);
+                        }
+                    }
+                    Err(error) => {
+                        eprintln!("Could not save screenshot: {}", error.to_string())
+                    }
+                },
+            ),
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
             WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
                 self.web_view_can_go_back = can_go_back;
