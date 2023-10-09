@@ -32,13 +32,15 @@ pub enum WebWindowControlBarInput {
     Refresh,
     Focus,
     Screenshot,
-    ScreenShotFlashFinished,
+    ScreenshotFlashFinished,
+    ReturnToMainAppWindow,
     LoadChanged((bool, bool)),
     TitleChanged(String),
 }
 
 #[derive(Debug)]
 pub enum WebWindowControlBarOutput {
+    ReturnToMainAppWindow,
     Remove(DynamicIndex), // pass the id
 }
 
@@ -160,7 +162,9 @@ impl FactoryComponent for WebWindowControlBar {
                             thread::spawn(move || {
                                 thread::sleep(Duration::from_millis(830));
                                 sender_clone
-                                    .input(WebWindowControlBarInput::ScreenShotFlashFinished);
+                                    .input(WebWindowControlBarInput::ScreenshotFlashFinished);
+                                thread::sleep(Duration::from_millis(300));
+                                sender_clone.input(WebWindowControlBarInput::ReturnToMainAppWindow);
                             });
                             if let Some(dir) = directories::UserDirs::new() {
                                 // Create the ~/Pictures/Screenshots folder if it doesn't exist
@@ -219,11 +223,15 @@ impl FactoryComponent for WebWindowControlBar {
                     },
                 )
             }
-            WebWindowControlBarInput::ScreenShotFlashFinished => self
-                .webwindow
-                .widgets()
-                .main_overlay
-                .remove_overlay(&self.screenshot_effect_box),
+            WebWindowControlBarInput::ScreenshotFlashFinished => {
+                self.webwindow
+                    .widgets()
+                    .main_overlay
+                    .remove_overlay(&self.screenshot_effect_box);
+            }
+            WebWindowControlBarInput::ReturnToMainAppWindow => {
+                sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow)
+            }
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
             WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
                 self.web_view_can_go_back = can_go_back;

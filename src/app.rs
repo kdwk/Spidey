@@ -32,6 +32,7 @@ pub enum AppInput {
     RemoveWebWindowControlBar(DynamicIndex),
     ShowAboutWindow,
     SetUpUserContentFilterStore,
+    PresentWindow,
 }
 
 #[relm4::component(pub)]
@@ -187,6 +188,7 @@ impl Component for App {
                 WebWindowControlBarOutput::Remove(index) => {
                     AppInput::RemoveWebWindowControlBar(index)
                 }
+                WebWindowControlBarOutput::ReturnToMainAppWindow => AppInput::PresentWindow,
             });
 
         // Standard component initialization procedures
@@ -308,6 +310,8 @@ impl Component for App {
                     }
                 }
             }
+
+            AppInput::PresentWindow => root.present(),
         }
     }
 }
