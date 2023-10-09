@@ -163,7 +163,7 @@ impl FactoryComponent for WebWindowControlBar {
                                 thread::sleep(Duration::from_millis(830));
                                 sender_clone
                                     .input(WebWindowControlBarInput::ScreenshotFlashFinished);
-                                thread::sleep(Duration::from_millis(300));
+                                thread::sleep(Duration::from_millis(500));
                                 sender_clone.input(WebWindowControlBarInput::ReturnToMainAppWindow);
                             });
                             if let Some(dir) = directories::UserDirs::new() {
