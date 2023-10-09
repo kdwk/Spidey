@@ -1,2 +1,15 @@
 @define-color accent_color #447BBE;
 @define-color accent_bg_color #447BBE;
+
+  @keyframes screenshot-flash {
+    0% {opacity: 0;}
+    20% {opacity: 1;}
+    100% {opacity: 0;}
+  }
+  
+  .screenshot-in-progress {
+    background-color: rgb(154,153,150);
+    opacity: 0;
+    animation-name: screenshot-flash;
+    animation-duration: 0.8s;
+  }

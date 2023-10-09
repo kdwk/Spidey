@@ -46,6 +46,7 @@ impl Component for WebWindow {
             set_default_height: 1000,
             set_default_width: 1000,
 
+            #[name(main_overlay)]
             gtk::Overlay {
                 add_overlay = &gtk::WindowHandle {
                     set_halign: gtk::Align::Fill,

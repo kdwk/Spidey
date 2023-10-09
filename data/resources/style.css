@@ -14,3 +14,16 @@
 .webwindow-close:hover {
   opacity: 1;
 }
+
+@keyframes screenshot-flash {
+  0% {opacity: 0;}
+  20% {opacity: 1;}
+  100% {opacity: 0;}
+}
+
+.screenshot-in-progress {
+  background-color: rgb(255,255,255);
+  opacity: 0;
+  animation-name: screenshot-flash;
+  animation-duration: 0.8s;
+}

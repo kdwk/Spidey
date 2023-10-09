@@ -22,3 +22,4 @@ relm4-icons = {version="0.7.0-alpha.2", features=["plus", "left", "right", "cros
 directories = "5.0.1"
 curl = "0.4.44"
 chrono = {version="0.4.31", features = ["clock"]}
+crossbeam = "0.8.2"
