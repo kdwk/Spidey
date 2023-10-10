@@ -19,7 +19,7 @@ pub struct WebWindowControlBar {
     webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
     web_view_can_go_forward: bool,
-    screenshot_effect_box: gtk::Box,
+    screenshot_flash_box: gtk::Box,
 }
 
 pub type WebWindowControlBarInit = (String, Option<webkit6::UserContentFilterStore>);
@@ -146,7 +146,7 @@ impl FactoryComponent for WebWindowControlBar {
                 let web_window_widget_clone = self.webwindow.widgets().web_window.clone();
                 let toast_overlay_widget_clone = self.webwindow.widgets().toast_overlay.clone();
                 let main_overlay_widget_clone = self.webwindow.widgets().main_overlay.clone();
-                let screenshot_effect_box_clone = self.screenshot_effect_box.clone();
+                let screenshot_effect_box_clone = self.screenshot_flash_box.clone();
                 self.webwindow.widgets().web_view.snapshot(
                     webkit6::SnapshotRegion::Visible,
                     webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
@@ -227,7 +227,7 @@ impl FactoryComponent for WebWindowControlBar {
                 self.webwindow
                     .widgets()
                     .main_overlay
-                    .remove_overlay(&self.screenshot_effect_box);
+                    .remove_overlay(&self.screenshot_flash_box);
             }
             WebWindowControlBarInput::ReturnToMainAppWindow => {
                 sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow)
@@ -264,7 +264,7 @@ impl FactoryComponent for WebWindowControlBar {
             webwindow: new_webwindow,
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
-            screenshot_effect_box: screenshot_effect_box,
+            screenshot_flash_box: screenshot_effect_box,
         }
     }
 }
