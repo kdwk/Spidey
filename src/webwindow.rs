@@ -118,14 +118,11 @@ impl Component for WebWindow {
         let widgets = view_output!();
 
         // Set settings for the WebView
-        match webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
-            Some(web_view_settings) => {
-                web_view_settings.set_media_playback_requires_user_gesture(true);
-                if PROFILE == "Devel" {
-                    web_view_settings.set_enable_developer_extras(true);
-                }
+        if let Some(web_view_settings) = webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
+            web_view_settings.set_media_playback_requires_user_gesture(true);
+            if PROFILE == "Devel" {
+                web_view_settings.set_enable_developer_extras(true);
             }
-            None => {}
         }
 
         // Set up adblock
@@ -145,46 +142,37 @@ impl Component for WebWindow {
 
         // Handle things related to the Network Session
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
-        match widgets.web_view.network_session() {
-            Some(session) => {
-                // Handle downloads
-                session.connect_download_started(move |this_session, download_object| {
-                    let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
-                    let toast_overlay_widget_clone_clone_2 = toast_overlay_widget_clone.clone();
-                    download_object.connect_failed(move |this_download_object, error| {
-                        eprintln!("{}", error.to_string());
-                        toast_overlay_widget_clone_clone_1
-                            .add_toast(adw::Toast::new("Download failed"));
-                    });
-                    download_object.connect_finished(move |this_download_object| {
-                        toast_overlay_widget_clone_clone_2
-                            .add_toast(adw::Toast::new("File saved to Downloads folder"));
-                        //TODO: add button to open file
-                    });
+        if let Some(session) = widgets.web_view.network_session() {
+            // Handle downloads
+            session.connect_download_started(move |this_session, download_object| {
+                let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
+                let toast_overlay_widget_clone_clone_2 = toast_overlay_widget_clone.clone();
+                download_object.connect_failed(move |this_download_object, error| {
+                    eprintln!("{}", error.to_string());
+                    toast_overlay_widget_clone_clone_1
+                        .add_toast(adw::Toast::new("Download failed"));
                 });
+                download_object.connect_finished(move |this_download_object| {
+                    toast_overlay_widget_clone_clone_2
+                        .add_toast(adw::Toast::new("File saved to Downloads folder"));
+                    //TODO: add button to open file
+                });
+            });
 
-                // Enable Intelligent Tracking Prevention
-                session.set_itp_enabled(true);
+            // Enable Intelligent Tracking Prevention
+            session.set_itp_enabled(true);
 
-                // Handle persistent cookies
-                let cookie_manager = session.cookie_manager();
-                match cookie_manager {
-                    Some(cookie_manager) => {
-                        if let Some(dir) =
-                            directories::ProjectDirs::from("com", "github.kdwk", "Spidey")
-                        {
-                            create_dir_all(dir.data_dir()).unwrap();
-                            let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
-                            cookie_manager.set_persistent_storage(
-                                &cookiesdb_file_path.into_os_string().into_string().unwrap()[..],
-                                webkit6::CookiePersistentStorage::Sqlite,
-                            );
-                        }
-                    }
-                    None => {}
+            // Handle persistent cookies
+            if let Some(cookie_manager) = session.cookie_manager() {
+                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
+                    create_dir_all(dir.data_dir()).unwrap();
+                    let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
+                    cookie_manager.set_persistent_storage(
+                        &cookiesdb_file_path.into_os_string().into_string().unwrap()[..],
+                        webkit6::CookiePersistentStorage::Sqlite,
+                    );
                 }
             }
-            None => {}
         }
 
         let app = relm4::main_adw_application();

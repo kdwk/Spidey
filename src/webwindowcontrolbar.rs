@@ -203,13 +203,13 @@ impl FactoryComponent for WebWindowControlBar {
                                     screenshot_save_path(suffix)
                                 };
                                 let texture_png_bytes = texture.save_to_png_bytes();
-                                File::create(Path::new(&screenshot_save_path_final));
+                                File::create(Path::new(&screenshot_save_path_final)).unwrap();
                                 let mut screenshot_file = OpenOptions::new()
                                     .write(true)
                                     .open(Path::new(&screenshot_save_path_final))
                                     .unwrap();
                                 // Actually write the PNG bytes to the file
-                                screenshot_file.write_all(&texture_png_bytes);
+                                screenshot_file.write_all(&texture_png_bytes).unwrap();
                                 toast_overlay_widget_clone.add_toast(adw::Toast::new(
                                     "Screenshot saved to Pictures→Screenshots",
                                 ));

@@ -232,15 +232,11 @@ impl Component for App {
         match message {
             AppInput::NewWebWindow => {
                 let url_processed_result = process_url(String::from(self.url_entry_buffer.text()));
-                let final_url_option = url_processed_result.ok();
-                match final_url_option {
-                    Some(final_url) => {
-                        self.webwindowcontrolbars
-                            .guard()
-                            .push_back((final_url, self.user_content_filter_store_option.clone()));
-                        self.url_entry_buffer.set_text("");
-                    }
-                    None => {}
+                if let Some(final_url) = url_processed_result.ok() {
+                    self.webwindowcontrolbars
+                        .guard()
+                        .push_back((final_url, self.user_content_filter_store_option.clone()));
+                    self.url_entry_buffer.set_text("");
                 }
             }
 
