@@ -278,8 +278,8 @@ impl Component for App {
                             .unwrap()[..];
                         match Path::try_exists(Path::new(adblock_json_file_path)) {
                             // Ok(true): path points to existing entity; Ok(false): path is broken
-                            Ok(path_is_broken) => {
-                                if !path_is_broken {
+                            Ok(path_exists) => {
+                                if path_exists {
                                     user_content_filter_store.save_from_file(
                                         "adblock",
                                         &webkit6::gio::File::for_path(adblock_json_file_path),
