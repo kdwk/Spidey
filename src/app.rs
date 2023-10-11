@@ -201,19 +201,11 @@ impl Component for App {
         let widgets = view_output!();
         let app = relm4::main_adw_application();
         let mut action_group = RelmActionGroup::<AppWindowActionGroup>::new();
+        let sender_clone = sender.clone();
         let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
-            adw::AboutWindow::builder()
-                .application_icon("application-x-executable")
-                .developer_name("Kdwk")
-                .version("1.0")
-                .comments("World Wide Web-crawler")
-                .website("https://github.com/kdwk/Spidey")
-                .issue_url("https://github.com/kdwk/Spidey/issues")
-                .copyright("© 2023 Kendrew Leung")
-                .build()
-                .present();
+            sender_clone.input(AppInput::ShowAboutWindow);
         });
-        app.set_accels_for_action("show_about", &["<Alt>A"]);
+        app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
         action_group.add_action(show_about);
         action_group.register_for_widget(root);
         ComponentParts {
