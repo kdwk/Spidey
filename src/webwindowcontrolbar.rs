@@ -32,6 +32,7 @@ pub enum WebWindowControlBarInput {
     Refresh,
     Focus,
     Screenshot,
+    BeginScreenshotFlash,
     ScreenshotFlashFinished,
     ReturnToMainAppWindow,
     LoadChanged((bool, bool)),
@@ -145,25 +146,23 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarInput::Screenshot => {
                 let web_window_widget_clone = self.webwindow.widgets().web_window.clone();
                 let toast_overlay_widget_clone = self.webwindow.widgets().toast_overlay.clone();
-                let main_overlay_widget_clone = self.webwindow.widgets().main_overlay.clone();
-                let screenshot_effect_box_clone = self.screenshot_flash_box.clone();
                 self.webwindow.widgets().web_view.snapshot(
                     webkit6::SnapshotRegion::Visible,
                     webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
                     gtk::gio::Cancellable::NONE,
                     move |snapshot_result| match snapshot_result {
                         Ok(texture) => {
-                            // Add the effect box with CSS class "screenshot-in-progress" to the main overlay of the WebWindow, CSS animation "screenshot-flash" automatically begins
-                            main_overlay_widget_clone.add_overlay(&screenshot_effect_box_clone);
                             // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
                             web_window_widget_clone.present();
                             let sender_clone = sender.clone();
                             // Animation is 800ms, so after that and 30ms of leeway send the ScreenShotFlashFinished input to remove the effect box
                             thread::spawn(move || {
+                                thread::sleep(Duration::from_millis(300));
+                                sender_clone.input(WebWindowControlBarInput::BeginScreenshotFlash);
                                 thread::sleep(Duration::from_millis(830));
                                 sender_clone
                                     .input(WebWindowControlBarInput::ScreenshotFlashFinished);
-                                thread::sleep(Duration::from_millis(500));
+                                thread::sleep(Duration::from_millis(350));
                                 sender_clone.input(WebWindowControlBarInput::ReturnToMainAppWindow);
                             });
                             if let Some(dir) = directories::UserDirs::new() {
@@ -222,6 +221,13 @@ impl FactoryComponent for WebWindowControlBar {
                         }
                     },
                 )
+            }
+            WebWindowControlBarInput::BeginScreenshotFlash => {
+                // Add the effect box with CSS class "screenshot-in-progress" to the main overlay of the WebWindow, CSS animation "screenshot-flash" automatically begins
+                self.webwindow
+                    .widgets()
+                    .main_overlay
+                    .add_overlay(&self.screenshot_flash_box);
             }
             WebWindowControlBarInput::ScreenshotFlashFinished => {
                 self.webwindow
