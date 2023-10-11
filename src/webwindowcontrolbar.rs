@@ -155,28 +155,43 @@ impl FactoryComponent for WebWindowControlBar {
                             // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
                             web_window_widget_clone.present();
                             let sender_clone = sender.clone();
-                            // Animation is 800ms, so after that and 30ms of leeway send the ScreenShotFlashFinished input to remove the effect box
+                            // Timing thread sends signals back to this thread
                             thread::spawn(move || {
+                                // Wait for 300ms for the WebWindow to be in focus
                                 thread::sleep(Duration::from_millis(300));
+                                // Add the screenshot flash box to the main_overlay of the WebWindow
                                 sender_clone.input(WebWindowControlBarInput::BeginScreenshotFlash);
+                                // Wait for the animation to finish
                                 thread::sleep(Duration::from_millis(830));
+                                // Remoe the screenshot flash box
                                 sender_clone
                                     .input(WebWindowControlBarInput::ScreenshotFlashFinished);
+                                // Wait for another 350ms to prevent whiplash
                                 thread::sleep(Duration::from_millis(350));
+                                // Return focus back to main app window
                                 sender_clone.input(WebWindowControlBarInput::ReturnToMainAppWindow);
                             });
+                            // Function to add an error message to explain what went wrong in case of a failed screenshot save
+                            let present_error_toast = |error_message: String| {
+                                toast_overlay_widget_clone
+                                    .add_toast(adw::Toast::new(&error_message));
+                            };
                             if let Some(dir) = directories::UserDirs::new() {
                                 // Create the ~/Pictures/Screenshots folder if it doesn't exist
-                                create_dir_all(Path::new(
+                                if let Err(_) = create_dir_all(Path::new(
                                     &dir.picture_dir()
                                         .unwrap()
                                         .join("Screenshots")
                                         .into_os_string()
                                         .into_string()
                                         .unwrap(),
-                                ))
-                                .unwrap();
-                                // Function to get the screenshot save path with the suffix as a String
+                                )) {
+                                    present_error_toast(
+                                        "Could not create ~/Pictures/Screenshots".into(),
+                                    );
+                                    return;
+                                }
+                                // Function to get the screenshot save path and append the suffix to it
                                 let screenshot_save_path = |suffix: usize| -> String {
                                     let suffix_str = suffix.to_string();
                                     let path = dir
@@ -201,14 +216,38 @@ impl FactoryComponent for WebWindowControlBar {
                                     }
                                     screenshot_save_path(suffix)
                                 };
-                                let texture_png_bytes = texture.save_to_png_bytes();
-                                File::create(Path::new(&screenshot_save_path_final)).unwrap();
-                                let mut screenshot_file = OpenOptions::new()
+                                // Create the actual file to save the screenshot to
+                                if let Err(_) = File::create(Path::new(&screenshot_save_path_final))
+                                {
+                                    present_error_toast(format!(
+                                        "Could not create {}",
+                                        &screenshot_save_path_final
+                                    ));
+                                    return;
+                                };
+                                let mut screenshot_file = match OpenOptions::new()
                                     .write(true)
                                     .open(Path::new(&screenshot_save_path_final))
-                                    .unwrap();
+                                {
+                                    Ok(file) => file,
+                                    Err(_) => {
+                                        present_error_toast(format!(
+                                            "Could not open {}",
+                                            &screenshot_save_path_final
+                                        ));
+                                        return;
+                                    }
+                                };
                                 // Actually write the PNG bytes to the file
-                                screenshot_file.write_all(&texture_png_bytes).unwrap();
+                                if let Err(_) =
+                                    screenshot_file.write_all(&texture.save_to_png_bytes())
+                                {
+                                    present_error_toast(format!(
+                                        "Failed to write to {}",
+                                        &screenshot_save_path_final
+                                    ));
+                                    return;
+                                };
                                 toast_overlay_widget_clone.add_toast(adw::Toast::new(
                                     "Screenshot saved to Pictures→Screenshots",
                                 ));
@@ -260,17 +299,17 @@ impl FactoryComponent for WebWindowControlBar {
                     }
                     WebWindowOutput::Close => WebWindowControlBarInput::Close,
                 });
-        let screenshot_effect_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        screenshot_effect_box.set_valign(gtk::Align::Fill);
-        screenshot_effect_box.set_halign(gtk::Align::Fill);
-        screenshot_effect_box.add_css_class("screenshot-in-progress");
+        let screenshot_flash_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        screenshot_flash_box.set_valign(gtk::Align::Fill);
+        screenshot_flash_box.set_halign(gtk::Align::Fill);
+        screenshot_flash_box.add_css_class("screenshot-in-progress");
         Self {
             id: index.clone(),
             label: init.0,
             webwindow: new_webwindow,
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
-            screenshot_flash_box: screenshot_effect_box,
+            screenshot_flash_box: screenshot_flash_box,
         }
     }
 }
