@@ -269,8 +269,7 @@ impl Component for WebWindow {
                             // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
                             web_window_widget_clone.present();
                             let sender_clone = sender.clone();
-                            // Timing thread sends signals back to this thread
-                            // TODO: does not work
+                            // Using async but not threads because WebWindowInput cannot be sent across threads due to one of the variants carrying a WebView
                             let animation_timing_handle = relm4::spawn_local(async move {
                                 // Wait for 300ms for the WebWindow to be in focus
                                 tokio::time::sleep(Duration::from_millis(300)).await;

@@ -19,8 +19,6 @@ pub struct WebWindowControlBar {
     webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
     web_view_can_go_forward: bool,
-    // TODO: move to WebWindow UI code with conditional widgets
-    // screenshot_flash_box: gtk::Box,
 }
 
 pub type WebWindowControlBarInit = (String, Option<webkit6::UserContentFilterStore>);
@@ -175,17 +173,12 @@ impl FactoryComponent for WebWindowControlBar {
                         WebWindowControlBarInput::ReturnToMainAppWindow
                     }
                 });
-        // let screenshot_flash_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        // screenshot_flash_box.set_valign(gtk::Align::Fill);
-        // screenshot_flash_box.set_halign(gtk::Align::Fill);
-        // screenshot_flash_box.add_css_class("screenshot-in-progress");
         Self {
             id: index.clone(),
             label: init.0,
             webwindow: new_webwindow,
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
-            // screenshot_flash_box: screenshot_flash_box,
         }
     }
 }
