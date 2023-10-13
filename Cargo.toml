@@ -23,3 +23,4 @@ directories = "5.0.1"
 curl = "0.4.44"
 chrono = {version="0.4.31", features = ["clock"]}
 crossbeam = "0.8.2"
+tokio = {version="1.33.0", features=["time"]}

@@ -1,12 +1,19 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use directories;
-use std::fs::{create_dir_all, File};
+use std::{
+    fs::{create_dir_all, File, OpenOptions},
+    io::Write,
+    path::Path,
+    thread,
+    time::Duration,
+};
 
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
+use tokio;
 use webkit6::prelude::*;
 use webkit6_sys::webkit_web_view_get_settings;
 
@@ -15,6 +22,7 @@ use crate::smallwebwindow::*;
 
 pub struct WebWindow {
     url: String,
+    screenshot_flash_box: gtk::Box,
 }
 
 #[derive(Debug)]
@@ -22,12 +30,16 @@ pub enum WebWindowInput {
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     InsecureContentDetected,
+    Screenshot,
+    BeginScreenshotFlash,
+    ScreenshotFlashFinished,
 }
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
     LoadChanged((bool, bool)),
     TitleChanged(String),
+    ReturnToMainAppWindow,
     Close,
 }
 
@@ -114,7 +126,16 @@ impl Component for WebWindow {
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         // Standard component initialization
-        let model = WebWindow { url: init.0 };
+        let screenshot_flash_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .valign(gtk::Align::Fill)
+            .halign(gtk::Align::Fill)
+            .build();
+        screenshot_flash_box.add_css_class("screenshot-in-progress");
+        let model = WebWindow {
+            url: init.0,
+            screenshot_flash_box,
+        };
         let widgets = view_output!();
 
         // Set settings for the WebView
@@ -236,6 +257,130 @@ impl Component for WebWindow {
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
                 .add_toast(adw::Toast::new("This page is insecure")),
+            WebWindowInput::Screenshot => {
+                let web_window_widget_clone = widgets.web_window.clone();
+                let toast_overlay_widget_clone = widgets.toast_overlay.clone();
+                widgets.web_view.snapshot(
+                    webkit6::SnapshotRegion::FullDocument,
+                    webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
+                    gtk::gio::Cancellable::NONE,
+                    move |snapshot_result| match snapshot_result {
+                        Ok(texture) => {
+                            // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
+                            web_window_widget_clone.present();
+                            let sender_clone = sender.clone();
+                            // Timing thread sends signals back to this thread
+                            // TODO: does not work
+                            let animation_timing_handle = relm4::spawn_local(async move {
+                                // Wait for 300ms for the WebWindow to be in focus
+                                tokio::time::sleep(Duration::from_millis(300)).await;
+                                // Add the screenshot flash box to the main_overlay of the WebWindow
+                                sender_clone.input(WebWindowInput::BeginScreenshotFlash);
+                                // Wait for the animation to finish
+                                tokio::time::sleep(Duration::from_millis(830)).await;
+                                // Remoe the screenshot flash box
+                                sender_clone.input(WebWindowInput::ScreenshotFlashFinished);
+                                // Wait for another 350ms to prevent whiplash
+                                tokio::time::sleep(Duration::from_millis(350)).await;
+                                // Return focus back to main app window
+                                sender_clone.output(WebWindowOutput::ReturnToMainAppWindow);
+                            });
+                            // Function to add an error message to explain what went wrong in case of a failed screenshot save
+                            let present_error_toast = |error_message: String| {
+                                toast_overlay_widget_clone
+                                    .add_toast(adw::Toast::new(&error_message));
+                            };
+                            if let Some(dir) = directories::UserDirs::new() {
+                                // Create the ~/Pictures/Screenshots folder if it doesn't exist
+                                if let Err(_) = create_dir_all(Path::new(
+                                    &dir.picture_dir()
+                                        .unwrap()
+                                        .join("Screenshots")
+                                        .into_os_string()
+                                        .into_string()
+                                        .unwrap(),
+                                )) {
+                                    present_error_toast(
+                                        "Could not create ~/Pictures/Screenshots".into(),
+                                    );
+                                    return;
+                                }
+                                // Function to get the screenshot save path and append the suffix to it
+                                let screenshot_save_path = |suffix: usize| -> String {
+                                    let suffix_str = suffix.to_string();
+                                    let path = dir
+                                        .picture_dir()
+                                        .unwrap()
+                                        .join("Screenshots")
+                                        .join(
+                                            "Screenshot".to_owned()
+                                                + if suffix != 0 { &suffix_str[..] } else { "" }
+                                                + ".png",
+                                        )
+                                        .into_os_string()
+                                        .into_string()
+                                        .unwrap();
+                                    path
+                                };
+                                // Increment the suffix until the file doesn't already exist in the folder
+                                let mut suffix: usize = 0;
+                                let screenshot_save_path_final = {
+                                    while Path::new(&screenshot_save_path(suffix)[..]).exists() {
+                                        suffix += 1;
+                                    }
+                                    screenshot_save_path(suffix)
+                                };
+                                // Create the actual file to save the screenshot to
+                                if let Err(_) = File::create(Path::new(&screenshot_save_path_final))
+                                {
+                                    present_error_toast(format!(
+                                        "Could not create {}",
+                                        &screenshot_save_path_final
+                                    ));
+                                    return;
+                                };
+                                let mut screenshot_file = match OpenOptions::new()
+                                    .write(true)
+                                    .open(Path::new(&screenshot_save_path_final))
+                                {
+                                    Ok(file) => file,
+                                    Err(_) => {
+                                        present_error_toast(format!(
+                                            "Could not open {}",
+                                            &screenshot_save_path_final
+                                        ));
+                                        return;
+                                    }
+                                };
+                                // Actually write the PNG bytes to the file
+                                if let Err(_) =
+                                    screenshot_file.write_all(&texture.save_to_png_bytes())
+                                {
+                                    present_error_toast(format!(
+                                        "Failed to write to {}",
+                                        &screenshot_save_path_final
+                                    ));
+                                    return;
+                                };
+                                toast_overlay_widget_clone.add_toast(adw::Toast::new(
+                                    "Screenshot saved to Pictures→Screenshots",
+                                ));
+                            }
+                        }
+                        Err(error) => {
+                            eprintln!("Could not save screenshot: {}", error.to_string());
+                            toast_overlay_widget_clone
+                                .add_toast(adw::Toast::new("Failed to take screenshot"))
+                        }
+                    },
+                )
+            }
+            WebWindowInput::BeginScreenshotFlash => {
+                widgets.main_overlay.add_overlay(&self.screenshot_flash_box)
+            }
+            WebWindowInput::ScreenshotFlashFinished => widgets
+                .main_overlay
+                .remove_overlay(&self.screenshot_flash_box),
         }
     }
 }
