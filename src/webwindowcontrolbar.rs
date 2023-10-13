@@ -19,6 +19,7 @@ pub struct WebWindowControlBar {
     webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
     web_view_can_go_forward: bool,
+    // TODO: move to WebWindow UI code with conditional widgets
     screenshot_flash_box: gtk::Box,
 }
 
