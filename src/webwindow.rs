@@ -181,9 +181,9 @@ impl Component for WebWindow {
         let go_back: RelmAction<GoBack> = RelmAction::new_stateless(move |_| {
             web_view_widget_clone.go_back();
         });
-        app.set_accelerators_for_action::<GoBack>(&["<Alt>leftarrow"]);
+        app.set_accelerators_for_action::<GoBack>(&["<Ctrl>leftarrow"]);
         action_group.add_action(go_back);
-        action_group.register_for_widget(&widgets.web_window);
+        action_group.register_for_widget(root);
         ComponentParts {
             model: model,
             widgets: widgets,
