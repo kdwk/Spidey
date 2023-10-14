@@ -129,6 +129,7 @@ impl Component for App {
         // Set up adblock filters in another thread
         let sender_clone = sender.clone();
         thread::spawn(move || {
+            println!("Successfully entered adblock json download thread");
             let gschema_id = if PROFILE == "Devel" {
                 "com.github.kdwk.Spidey.Devel"
             } else {
@@ -138,8 +139,10 @@ impl Component for App {
             let gsettings = gtk::gio::Settings::new(gschema_id);
             // Get when the XDG_DATA_DIR/adblock.json file has been last updated
             let adblock_json_last_updated_timestamp = gsettings.int64("adblock-json-last-updated");
+            println!("a");
             // Only download the file from the Internet again if the file has not been updated in the last 7 days
             if Utc::now().timestamp() > adblock_json_last_updated_timestamp + 7 * 24 * 60 * 60 {
+                println!("b");
                 if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
                     create_dir_all(dir.data_dir()).unwrap();
                     let adblock_json_file_path = dir
@@ -153,6 +156,7 @@ impl Component for App {
                         .write(true)
                         .open(&adblock_json_file_path[..])
                         .unwrap();
+                    println!("c");
                     // Set up and perform curl Easy operation to download the adblock.json file from the Internet
                     let mut download_blocklist_operation = Easy::new();
                     download_blocklist_operation.url(
@@ -168,6 +172,7 @@ impl Component for App {
                         })
                         .unwrap();
                     download_blocklist_operation.perform().unwrap();
+                    println!("d");
                     // Update the last updated time of adblock.json
                     gsettings
                         .set_int64("adblock-json-last-updated", Utc::now().timestamp())
@@ -178,6 +183,7 @@ impl Component for App {
             }
             // Set up the UserContentFilterStore no matter if it has been freshly downloaded from the Internet or not
             // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
+            println!("Done with adblock json download thread");
             sender_clone.input(AppInput::SetUpUserContentFilterStore);
         });
 
@@ -285,7 +291,8 @@ impl Component for App {
                                         &webkit6::gio::File::for_path(adblock_json_file_path),
                                         webkit6::gio::Cancellable::NONE,
                                         |_| {println!("Successfully saved adblock.json into UserContentFilterStore")},
-                                    )
+                                    );
+                                    self.webwindowcontrolbars.broadcast(WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(user_content_filter_store.clone()));
                                 } else {
                                     eprintln!("XDG_DATA_DIR/adblock.json is a broken path");
                                 }

@@ -33,6 +33,7 @@ pub enum WebWindowInput {
     Screenshot,
     BeginScreenshotFlash,
     ScreenshotFlashFinished,
+    RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
 }
 
 #[derive(Debug)]
@@ -249,6 +250,19 @@ impl Component for WebWindow {
                     .connect_close(move |this_webview| {
                         small_web_window_widget_clone.close();
                     });
+            }
+            WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
+                if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
+                    user_content_filter_store.load(
+                        "adblock",
+                        gtk::gio::Cancellable::NONE,
+                        move |user_content_filter_result| {
+                            if let Ok(user_content_filter) = user_content_filter_result {
+                                user_content_manager.add_filter(&user_content_filter);
+                            }
+                        },
+                    )
+                }
             }
             WebWindowInput::TitleChanged(title) => {
                 widgets.web_window.set_title(Some(title.as_str()));

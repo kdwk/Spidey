@@ -23,7 +23,7 @@ pub struct WebWindowControlBar {
 
 pub type WebWindowControlBarInit = (String, Option<webkit6::UserContentFilterStore>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WebWindowControlBarInput {
     Back,
     Forward,
@@ -32,6 +32,7 @@ pub enum WebWindowControlBarInput {
     Focus,
     Screenshot,
     ReturnToMainAppWindow,
+    RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
     LoadChanged((bool, bool)),
     TitleChanged(String),
 }
@@ -154,6 +155,15 @@ impl FactoryComponent for WebWindowControlBar {
                 self.web_view_can_go_forward = can_go_forward;
             }
             WebWindowControlBarInput::TitleChanged(title) => self.label = title,
+            WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(
+                user_content_filter_store,
+            ) => self
+                .webwindow
+                .sender()
+                .send(WebWindowInput::RetroactivelyLoadUserContentFilter(
+                    user_content_filter_store,
+                ))
+                .unwrap(),
         }
     }
 
