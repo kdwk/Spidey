@@ -282,7 +282,9 @@ impl Component for WebWindow {
                                 // Wait for another 350ms to prevent whiplash
                                 tokio::time::sleep(Duration::from_millis(350)).await;
                                 // Return focus back to main app window
-                                sender_clone.output(WebWindowOutput::ReturnToMainAppWindow);
+                                sender_clone
+                                    .output(WebWindowOutput::ReturnToMainAppWindow)
+                                    .unwrap();
                             });
                             // Function to add an error message to explain what went wrong in case of a failed screenshot save
                             let present_error_toast = |error_message: String| {
