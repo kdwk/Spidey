@@ -1,12 +1,12 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use chrono::offset::Utc;
-use curl::easy::Easy;
 use directories;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
+use reqwest;
 use std::io::Write;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
@@ -139,10 +139,12 @@ impl Component for App {
             let gsettings = gtk::gio::Settings::new(gschema_id);
             // Get when the XDG_DATA_DIR/adblock.json file has been last updated
             let adblock_json_last_updated_timestamp = gsettings.int64("adblock-json-last-updated");
-            println!("a");
             // Only download the file from the Internet again if the file has not been updated in the last 7 days
             if Utc::now().timestamp() > adblock_json_last_updated_timestamp + 7 * 24 * 60 * 60 {
-                println!("b");
+                // Set up the UserContentFilterStore no matter before it has been downloaded from the Internet so WebWindows launched now can still have adblock from the old adblock.json
+                // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
+                sender_clone.input(AppInput::SetUpUserContentFilterStore);
+                println!("XDG_DATA_DIR/adblock.json is older than 7 days. Downloading from the Internet...");
                 if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
                     create_dir_all(dir.data_dir()).unwrap();
                     let adblock_json_file_path = dir
@@ -156,35 +158,40 @@ impl Component for App {
                         .write(true)
                         .open(&adblock_json_file_path[..])
                         .unwrap();
-                    println!("c");
                     // Set up and perform curl Easy operation to download the adblock.json file from the Internet
-                    let mut download_blocklist_operation = Easy::new();
-                    download_blocklist_operation.url(
-                        "https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json",
-                    )
-                    .unwrap();
-                    download_blocklist_operation
-                        .write_function(move |data| {
-                            // Write the downloaded data to adblock.json file
-                            adblock_json_file.write_all(data).unwrap();
-                            // Return the data length as required by curl
-                            Ok(data.len())
-                        })
-                        .unwrap();
-                    download_blocklist_operation.perform().unwrap();
-                    println!("d");
+                    // let mut download_blocklist_operation = Easy::new();
+                    // download_blocklist_operation.url(
+                    //     "https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json",
+                    // )
+                    // .unwrap();
+                    // download_blocklist_operation
+                    //     .write_function(move |data| {
+                    //         // Write the downloaded data to adblock.json file
+                    //         adblock_json_file.write_all(data).unwrap();
+                    //         // Return the data length as required by curl
+                    //         Ok(data.len())
+                    //     })
+                    //     .unwrap();
+                    // download_blocklist_operation.perform().unwrap();
+                    let download_response_option = reqwest::blocking::get("https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json").ok();
+                    if let Some(mut download_response) = download_response_option {
+                        let _ = download_response.copy_to(&mut adblock_json_file);
+                    } else {
+                        eprintln!("Unable to receive download data from \"https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json\"");
+                    }
                     // Update the last updated time of adblock.json
                     gsettings
                         .set_int64("adblock-json-last-updated", Utc::now().timestamp())
                         .unwrap();
+                    // Set up UserContentFilterStore again with new adblock.json
+                    sender_clone.input(AppInput::SetUpUserContentFilterStore);
                 }
             } else {
-                println!("XDG_DATA_DIR/adblock.json is less than 7 days old. No need to re-download from the Internet.")
+                println!("XDG_DATA_DIR/adblock.json is less than 7 days old. No need to re-download from the Internet.");
+                // Set up UserContentFilterStore with either old adblock or no adblock
+                sender_clone.input(AppInput::SetUpUserContentFilterStore);
             }
-            // Set up the UserContentFilterStore no matter if it has been freshly downloaded from the Internet or not
-            // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
             println!("Done with adblock json download thread");
-            sender_clone.input(AppInput::SetUpUserContentFilterStore);
         });
 
         // Set up WebWindowControlBars
