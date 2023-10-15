@@ -5,16 +5,17 @@ use std::{
     fs::{create_dir_all, File, OpenOptions},
     io::Write,
     path::Path,
+    process::Command,
     thread,
     time::Duration,
 };
 
-use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
+use relm4::actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
 use tokio;
-use webkit6::prelude::*;
+use webkit6::{gio::SimpleAction, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
@@ -44,8 +45,6 @@ pub enum WebWindowOutput {
     Close,
 }
 
-relm4::new_action_group!(WebWindowActionGroup, "win");
-relm4::new_stateless_action!(GoBack, WebWindowActionGroup, "go_back");
 #[relm4::component(pub)]
 impl Component for WebWindow {
     type Init = (String, Option<webkit6::UserContentFilterStore>);
@@ -164,6 +163,7 @@ impl Component for WebWindow {
 
         // Handle things related to the Network Session
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
+        let root_clone = root.clone();
         if let Some(session) = widgets.web_view.network_session() {
             // Handle downloads
             session.connect_download_started(move |this_session, download_object| {
@@ -175,9 +175,20 @@ impl Component for WebWindow {
                         .add_toast(adw::Toast::new("Download failed"));
                 });
                 download_object.connect_finished(move |this_download_object| {
-                    toast_overlay_widget_clone_clone_2
-                        .add_toast(adw::Toast::new("File saved to Downloads folder"));
-                    //TODO: add button to open file
+                    let toast = adw::Toast::new("File saved to Downloads folder");
+                    toast.set_button_label(Some("Open"));
+                    let downloaded_file_path = match this_download_object.destination() {
+                        Some(destination_gstring) => destination_gstring.to_string(),
+                        None => String::from(""),
+                    };
+                    toast.connect_button_clicked(move |_| {
+                        Command::new("flatpak-spawn")
+                            .arg("xdg-open")
+                            .arg(downloaded_file_path.as_str())
+                            .spawn()
+                            .expect("Unable to run `flatpak-spawn xdg-open downloaded_file_path`");
+                    });
+                    toast_overlay_widget_clone_clone_2.add_toast(toast);
                 });
             });
 
@@ -266,7 +277,7 @@ impl Component for WebWindow {
                 let web_window_widget_clone = widgets.web_window.clone();
                 let toast_overlay_widget_clone = widgets.toast_overlay.clone();
                 widgets.web_view.snapshot(
-                    webkit6::SnapshotRegion::FullDocument,
+                    webkit6::SnapshotRegion::Visible,
                     webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
                     gtk::gio::Cancellable::NONE,
                     move |snapshot_result| match snapshot_result {
