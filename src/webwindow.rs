@@ -197,15 +197,6 @@ impl Component for WebWindow {
             }
         }
 
-        let app = relm4::main_adw_application();
-        let mut action_group = RelmActionGroup::<WebWindowActionGroup>::new();
-        let web_view_widget_clone = widgets.web_view.clone();
-        let go_back: RelmAction<GoBack> = RelmAction::new_stateless(move |_| {
-            web_view_widget_clone.go_back();
-        });
-        app.set_accelerators_for_action::<GoBack>(&["<Ctrl>leftarrow"]);
-        action_group.add_action(go_back);
-        action_group.register_for_widget(root);
         ComponentParts {
             model: model,
             widgets: widgets,
