@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use ashpd::desktop::open_uri::OpenFileRequest;
 use directories;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
@@ -182,11 +183,22 @@ impl Component for WebWindow {
                         None => String::from(""),
                     };
                     toast.connect_button_clicked(move |_| {
-                        Command::new("flatpak-spawn")
-                            .arg("xdg-open")
-                            .arg(downloaded_file_path.as_str())
-                            .spawn()
-                            .expect("Unable to run `flatpak-spawn xdg-open downloaded_file_path`");
+                        let file_result = OpenOptions::new()
+                            .read(true)
+                            .open(Path::new(&downloaded_file_path));
+                        relm4::spawn_local(async move {
+                            if let Ok(file) = file_result {
+                                println!("a");
+                                let _ = OpenFileRequest::default()
+                                    .ask(true)
+                                    .send_file(&file)
+                                    .await
+                                    .is_ok_and(|req| {
+                                        let _ = req.response();
+                                        true
+                                    });
+                            }
+                        });
                     });
                     toast_overlay_widget_clone_clone_2.add_toast(toast);
                 });

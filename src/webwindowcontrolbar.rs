@@ -136,7 +136,7 @@ impl FactoryComponent for WebWindowControlBar {
         match message {
             WebWindowControlBarInput::Close => {
                 self.webwindow.widgets().web_window.destroy();
-                sender.output(WebWindowControlBarOutput::Remove(self.id.clone()));
+                let _ = sender.output(WebWindowControlBarOutput::Remove(self.id.clone()));
             }
             WebWindowControlBarInput::Back => self.webwindow.widgets().web_view.go_back(),
             WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
@@ -148,7 +148,7 @@ impl FactoryComponent for WebWindowControlBar {
                 .unwrap(),
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
             WebWindowControlBarInput::ReturnToMainAppWindow => {
-                sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow)
+                let _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow);
             }
             WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
                 self.web_view_can_go_back = can_go_back;

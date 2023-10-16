@@ -158,21 +158,7 @@ impl Component for App {
                         .write(true)
                         .open(&adblock_json_file_path[..])
                         .unwrap();
-                    // Set up and perform curl Easy operation to download the adblock.json file from the Internet
-                    // let mut download_blocklist_operation = Easy::new();
-                    // download_blocklist_operation.url(
-                    //     "https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json",
-                    // )
-                    // .unwrap();
-                    // download_blocklist_operation
-                    //     .write_function(move |data| {
-                    //         // Write the downloaded data to adblock.json file
-                    //         adblock_json_file.write_all(data).unwrap();
-                    //         // Return the data length as required by curl
-                    //         Ok(data.len())
-                    //     })
-                    //     .unwrap();
-                    // download_blocklist_operation.perform().unwrap();
+                    // Set up and perform reqwest operation to download the adblock.json file from the Internet
                     let download_response_option = reqwest::blocking::get("https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json").ok();
                     if let Some(mut download_response) = download_response_option {
                         let _ = download_response.copy_to(&mut adblock_json_file);
@@ -195,8 +181,8 @@ impl Component for App {
         });
 
         // Set up WebWindowControlBars
-        let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder(gtk::Box::default())
-            .launch()
+        let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder()
+            .launch(gtk::Box::default())
             .forward(sender.input_sender(), |output| match output {
                 WebWindowControlBarOutput::Remove(index) => {
                     AppInput::RemoveWebWindowControlBar(index)
