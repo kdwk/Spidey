@@ -16,7 +16,7 @@ use std::{
 use url::Url;
 
 use crate::config::{APP_ID, PROFILE};
-use crate::webwindowcontrolbar::*;
+use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow, IS_MAIN_WINDOW_OPEN};
 
 pub(super) struct App {
     url_entry_buffer: gtk::EntryBuffer,
@@ -43,6 +43,7 @@ impl Component for App {
     type CommandOutput = ();
 
     view! {
+        #[name(app_window)]
         adw::Window {
             set_default_height: 510,
             set_default_width: 400,
@@ -117,6 +118,10 @@ impl Component for App {
                         }
                     }
                 }
+            },
+            connect_close_request[sender] => move |_| {
+                *IS_MAIN_WINDOW_OPEN.write() = false;
+                gtk::glib::Propagation::Proceed
             }
         }
     }
@@ -204,9 +209,11 @@ impl Component for App {
         let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
             sender_clone.input(AppInput::ShowAboutWindow);
         });
-        app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
+        app.set_accelerators_for_action::<ShowAbout>(&["<primary>A"]);
         app_window_action_group.add_action(show_about);
         app_window_action_group.register_for_widget(root);
+        // Notify main function that a Main Window is now running
+        *IS_MAIN_WINDOW_OPEN.write() = true;
         ComponentParts {
             model: model,
             widgets: widgets,

@@ -9,11 +9,13 @@ mod webwindowcontrolbar;
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
     gtk::prelude::*,
-    main_application, RelmApp,
+    main_application, RelmApp, SharedState,
 };
 
 use app::App;
 use setup::setup;
+
+static IS_MAIN_WINDOW_OPEN: SharedState<bool> = SharedState::new();
 
 relm4::new_action_group!(AppActionGroup, "app");
 relm4::new_stateless_action!(QuitAction, AppActionGroup, "quit");
@@ -28,6 +30,12 @@ fn main() {
 
     setup();
 
+    // let mut is_main_window_open = false;
+    // let (sender, receiver) = relm4::channel();
+    // IS_MAIN_WINDOW_OPEN.subscribe(&sender, move |&value| {
+    //     is_main_window_open = value;
+    // });
+
     let app = main_application();
     app.set_resource_base_path(Some("/com/github/kdwk/Spidey/"));
 
@@ -39,16 +47,10 @@ fn main() {
             app.quit();
         })
     };
-    // let present_main_window_action = {
-    //     let app = app.clone();
-    //     RelmAction::<PresentMainWindow>::new_stateless(move |_| {})
-    // };
     actions.add_action(quit_action);
-    // actions.add_action(present_main_window_action);
     actions.register_for_main_application();
 
-    app.set_accelerators_for_action::<QuitAction>(&["<Control>q"]);
-    app.set_accelerators_for_action::<PresentMainWindow>(&["<Ctrl>h"]);
+    app.set_accelerators_for_action::<QuitAction>(&["<primary>q"]);
 
     let app = RelmApp::from_app(app);
 
