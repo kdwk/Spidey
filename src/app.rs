@@ -199,14 +199,14 @@ impl Component for App {
         let webwindowcontrolbar_box = model.webwindowcontrolbars.widget();
         let widgets = view_output!();
         let app = relm4::main_adw_application();
-        let mut action_group = RelmActionGroup::<AppWindowActionGroup>::new();
+        let mut app_window_action_group = RelmActionGroup::<AppWindowActionGroup>::new();
         let sender_clone = sender.clone();
         let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
             sender_clone.input(AppInput::ShowAboutWindow);
         });
         app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
-        action_group.add_action(show_about);
-        action_group.register_for_widget(root);
+        app_window_action_group.add_action(show_about);
+        app_window_action_group.register_for_widget(root);
         ComponentParts {
             model: model,
             widgets: widgets,

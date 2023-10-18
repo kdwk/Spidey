@@ -17,6 +17,7 @@ use setup::setup;
 
 relm4::new_action_group!(AppActionGroup, "app");
 relm4::new_stateless_action!(QuitAction, AppActionGroup, "quit");
+relm4::new_stateless_action!(PresentMainWindow, AppActionGroup, "present-main-window");
 
 fn main() {
     // Enable logging
@@ -38,10 +39,16 @@ fn main() {
             app.quit();
         })
     };
+    // let present_main_window_action = {
+    //     let app = app.clone();
+    //     RelmAction::<PresentMainWindow>::new_stateless(move |_| {})
+    // };
     actions.add_action(quit_action);
+    // actions.add_action(present_main_window_action);
     actions.register_for_main_application();
 
     app.set_accelerators_for_action::<QuitAction>(&["<Control>q"]);
+    app.set_accelerators_for_action::<PresentMainWindow>(&["<Ctrl>h"]);
 
     let app = RelmApp::from_app(app);
 

@@ -138,6 +138,8 @@ impl Component for WebWindow {
             screenshot_flash_box,
         };
         let widgets = view_output!();
+        // Make the main app be aware of this new window so it doesn't quit when main window is closed
+        relm4::main_adw_application().add_window(&Self::builder().root);
 
         // Set settings for the WebView
         if let Some(web_view_settings) = webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
