@@ -2,11 +2,6 @@
 #![allow(unused_variables)]
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
-use std::fs::{create_dir_all, File, OpenOptions};
-use std::io::Write;
-use std::path::Path;
-use std::thread;
-use std::time::Duration;
 use webkit6::prelude::*;
 
 use crate::app::AppInput;

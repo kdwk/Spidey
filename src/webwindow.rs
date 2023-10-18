@@ -72,7 +72,7 @@ impl Component for WebWindow {
                     set_margin_top: 5,
                     set_margin_end: 5,
                     set_side: gtk::PackType::End,
-                    add_css_class: "webwindow-close",
+                    add_css_class: "webwindow-controls",
                 },
                 #[name(toast_overlay)]
                 adw::ToastOverlay {
@@ -188,7 +188,6 @@ impl Component for WebWindow {
                             .open(Path::new(&downloaded_file_path));
                         relm4::spawn_local(async move {
                             if let Ok(file) = file_result {
-                                println!("a");
                                 let _ = OpenFileRequest::default()
                                     .ask(true)
                                     .send_file(&file)
@@ -391,9 +390,24 @@ impl Component for WebWindow {
                                     ));
                                     return;
                                 };
-                                toast_overlay_widget_clone.add_toast(adw::Toast::new(
-                                    "Screenshot saved to Pictures→Screenshots",
-                                ));
+                                // Add a toast to say that the screenshot is saved and a button to open the screenshot
+                                let toast = adw::Toast::builder()
+                                    .title("Screenshot saved to Pictures → Screenshots")
+                                    .button_label("Open")
+                                    .build();
+                                toast.connect_button_clicked(move |_| {
+                                    // relm4::spawn_local(async move {
+                                    //     let _ = OpenFileRequest::default()
+                                    //         .ask(true)
+                                    //         .send_file(&screenshot_file)
+                                    //         .await
+                                    //         .is_ok_and(|req| {
+                                    //             let _ = req.response();
+                                    //             true
+                                    //         });
+                                    // });
+                                });
+                                toast_overlay_widget_clone.add_toast(toast);
                             }
                         }
                         Err(error) => {

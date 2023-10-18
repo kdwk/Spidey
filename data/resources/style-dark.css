@@ -1,6 +1,10 @@
 @define-color accent_color #447BBE;
 @define-color accent_bg_color #447BBE;
 
+  .webwindow-controls {
+    filter: drop-shadow(0 0 0.5rem black);
+  }
+
   @keyframes screenshot-flash {
     0% {opacity: 0;}
     20% {opacity: 1;}
