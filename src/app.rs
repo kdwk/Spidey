@@ -209,7 +209,7 @@ impl Component for App {
         let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
             sender_clone.input(AppInput::ShowAboutWindow);
         });
-        app.set_accelerators_for_action::<ShowAbout>(&["<primary>A"]);
+        app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
         app_window_action_group.add_action(show_about);
         app_window_action_group.register_for_widget(root);
         // Notify main function that a Main Window is now running
