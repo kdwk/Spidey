@@ -23,4 +23,4 @@ directories = "5.0.1"
 chrono = {version="0.4.31", features = ["clock"]}
 tokio = {version="1.33.0", features=["time"]}
 reqwest = {version="0.11.22", features = ["blocking"]}
-ashpd = "0.6.5"
+ashpd = "0.6.7"
