@@ -13,6 +13,7 @@ use std::{
 
 use relm4::actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
+use relm4::gtk::glib::clone;
 use relm4::gtk::prelude::*;
 use relm4::prelude::*;
 use tokio;
@@ -139,7 +140,7 @@ impl Component for WebWindow {
         };
         let widgets = view_output!();
         // Make the main app be aware of this new window so it doesn't quit when main window is closed
-        relm4::main_adw_application().add_window(&Self::builder().root);
+        // relm4::main_adw_application().add_window(&Self::builder().root);
 
         // Set settings for the WebView
         if let Some(web_view_settings) = webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
@@ -245,26 +246,21 @@ impl Component for WebWindow {
                     .transient_for(root)
                     .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
                     .detach();
-                let small_web_window_widget_clone =
-                    smallwebwindow.widgets().small_web_window.clone();
-                smallwebwindow
-                    .model()
-                    .web_view
-                    .connect_title_notify(move |this_webview| {
+                let small_web_window_widget = smallwebwindow.widgets().small_web_window.clone();
+                smallwebwindow.model().web_view.connect_title_notify(
+                    clone!(@strong small_web_window_widget => move |this_webview| {
                         let title = this_webview
                             .title()
                             .map(|title| ToString::to_string(&title));
-                        small_web_window_widget_clone
+                        small_web_window_widget
                             .set_title(Some(&title.unwrap_or(String::from(""))[..]));
-                    });
-                let small_web_window_widget_clone =
-                    smallwebwindow.widgets().small_web_window.clone();
-                smallwebwindow
-                    .model()
-                    .web_view
-                    .connect_close(move |this_webview| {
-                        small_web_window_widget_clone.close();
-                    });
+                    }),
+                );
+                smallwebwindow.model().web_view.connect_close(
+                    clone!(@strong small_web_window_widget => move |this_webview| {
+                        small_web_window_widget.close();
+                    }),
+                );
             }
             WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
                 if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
