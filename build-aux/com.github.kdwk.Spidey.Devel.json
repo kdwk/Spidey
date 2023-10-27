@@ -18,8 +18,7 @@
         "--device=dri",
         "--env=RUST_LOG=spidey=debug",
         "--env=G_MESSAGES_DEBUG=none",
-        "--env=RUST_BACKTRACE=1",
-        "--env=WEBKIT_DISABLE_DMABUF_RENDERER=1"
+        "--env=RUST_BACKTRACE=1"
     ],
     "build-options" : {
         "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm16/bin",
