@@ -140,7 +140,7 @@ impl FactoryComponent for WebWindowControlBar {
                 .webwindow
                 .sender()
                 .send(WebWindowInput::Screenshot)
-                .unwrap(),
+                .expect("Could not send WebWindowInput::Screenshot to WebWindow"),
             WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
             WebWindowControlBarInput::ReturnToMainAppWindow => {
                 let _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow);
@@ -158,7 +158,7 @@ impl FactoryComponent for WebWindowControlBar {
                 .send(WebWindowInput::RetroactivelyLoadUserContentFilter(
                     user_content_filter_store,
                 ))
-                .unwrap(),
+                .expect("Could not send WebWindowInput::RetroactivelyLoadUserContentFilter to WebWindow"),
         }
     }
 

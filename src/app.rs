@@ -4,9 +4,10 @@ use chrono::offset::Utc;
 use directories;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
-use relm4::gtk::prelude::*;
+use relm4::gtk::{glib::clone, prelude::*};
 use relm4::prelude::*;
 use reqwest;
+use std::error::Error;
 use std::io::Write;
 use std::{
     fs::{create_dir_all, File, OpenOptions},
@@ -132,8 +133,8 @@ impl Component for App {
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         // Set up adblock filters in another thread
-        let sender_clone = sender.clone();
-        thread::spawn(move || {
+        // let sender_clone = sender.clone();
+        thread::spawn(clone!(@strong sender => move || {
             println!("Successfully entered adblock json download thread");
             let gschema_id = if PROFILE == "Devel" {
                 "com.github.kdwk.Spidey.Devel"
@@ -148,21 +149,21 @@ impl Component for App {
             if Utc::now().timestamp() > adblock_json_last_updated_timestamp + 7 * 24 * 60 * 60 {
                 // Set up the UserContentFilterStore no matter before it has been downloaded from the Internet so WebWindows launched now can still have adblock from the old adblock.json
                 // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
-                sender_clone.input(AppInput::SetUpUserContentFilterStore);
+                sender.input(AppInput::SetUpUserContentFilterStore);
                 println!("XDG_DATA_DIR/adblock.json is older than 7 days. Downloading from the Internet...");
                 if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    create_dir_all(dir.data_dir()).unwrap();
+                    create_dir_all(dir.data_dir()).expect("Could not create XDG_DATA_DIR");
                     let adblock_json_file_path = dir
                         .data_dir()
                         .join("adblock.json")
                         .into_os_string()
                         .into_string()
-                        .unwrap();
-                    File::create(&adblock_json_file_path.clone()[..]).unwrap();
+                        .expect("Could not create adblock_json_file_path");
+                    File::create(&adblock_json_file_path).expect(format!("Could not create adblock.json at {}", adblock_json_file_path).as_str());
                     let mut adblock_json_file = OpenOptions::new()
                         .write(true)
-                        .open(&adblock_json_file_path[..])
-                        .unwrap();
+                        .open(&adblock_json_file_path)
+                        .expect("Could not open XDG_DATA_DIR/adblock.json");
                     // Set up and perform reqwest operation to download the adblock.json file from the Internet
                     let download_response_option = reqwest::blocking::get("https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json").ok();
                     if let Some(mut download_response) = download_response_option {
@@ -173,17 +174,17 @@ impl Component for App {
                     // Update the last updated time of adblock.json
                     gsettings
                         .set_int64("adblock-json-last-updated", Utc::now().timestamp())
-                        .unwrap();
+                        .expect("Could not update GSettings value 'adblock-json-last-updated'");
                     // Set up UserContentFilterStore again with new adblock.json
-                    sender_clone.input(AppInput::SetUpUserContentFilterStore);
+                    sender.input(AppInput::SetUpUserContentFilterStore);
                 }
             } else {
                 println!("XDG_DATA_DIR/adblock.json is less than 7 days old. No need to re-download from the Internet.");
                 // Set up UserContentFilterStore with either old adblock or no adblock
-                sender_clone.input(AppInput::SetUpUserContentFilterStore);
+                sender.input(AppInput::SetUpUserContentFilterStore);
             }
             println!("Done with adblock json download thread");
-        });
+        }));
 
         // Set up WebWindowControlBars
         let webwindowcontrolbars = relm4::factory::FactoryVecDeque::builder()
@@ -205,10 +206,11 @@ impl Component for App {
         let widgets = view_output!();
         let app = relm4::main_adw_application();
         let mut app_window_action_group = RelmActionGroup::<AppWindowActionGroup>::new();
-        let sender_clone = sender.clone();
-        let show_about: RelmAction<ShowAbout> = RelmAction::new_stateless(move |_| {
-            sender_clone.input(AppInput::ShowAboutWindow);
-        });
+        // let sender_clone = sender.clone();
+        let show_about: RelmAction<ShowAbout> =
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(AppInput::ShowAboutWindow);
+            }));
         app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
         app_window_action_group.add_action(show_about);
         app_window_action_group.register_for_widget(root);
@@ -258,31 +260,33 @@ impl Component for App {
 
             AppInput::SetUpUserContentFilterStore => {
                 if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    let user_content_filter_store_path = &dir
+                    let user_content_filter_store_path = dir
                         .data_dir()
                         .join("UserContentFilterStore")
                         .into_os_string()
                         .into_string()
-                        .unwrap()[..];
+                        .expect("Could not build path user_content_filter_store_path");
 
                     // Create the UserContentFilterStore storage location if it doesn't exist
-                    create_dir_all(user_content_filter_store_path).unwrap();
+                    create_dir_all(&user_content_filter_store_path)
+                        .expect("Could not create file at user_content_filter_store_path");
 
                     // Create a new UserContentFilterStore and save to the corresponding field in the struct of self
-                    self.user_content_filter_store_option = Some(
-                        webkit6::UserContentFilterStore::new(user_content_filter_store_path),
-                    );
+                    self.user_content_filter_store_option =
+                        Some(webkit6::UserContentFilterStore::new(
+                            user_content_filter_store_path.as_str(),
+                        ));
 
                     // Save XDG_DATA_DIR/adblock.json into the UserContentFilterStore as a UserContentFilter
                     if let Some(user_content_filter_store) = &self.user_content_filter_store_option
                     {
-                        let adblock_json_file_path = &dir
+                        let adblock_json_file_path = dir
                             .data_dir()
                             .join("adblock.json")
                             .into_os_string()
                             .into_string()
-                            .unwrap()[..];
-                        match Path::try_exists(Path::new(adblock_json_file_path)) {
+                            .expect("Could not build path adblock_json_file_path");
+                        match Path::try_exists(Path::new(adblock_json_file_path.as_str())) {
                             // Ok(true): path points to existing entity; Ok(false): path is broken
                             Ok(path_exists) => {
                                 if path_exists {

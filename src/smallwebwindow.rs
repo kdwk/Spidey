@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use relm4::adw::prelude::*;
-use relm4::gtk::prelude::*;
+use relm4::gtk::{glib::clone, prelude::*};
 use relm4::prelude::*;
 use webkit6::prelude::*;
 

@@ -85,7 +85,7 @@ impl Component for WebWindow {
                             set_vexpand: true,
                             load_uri: model.url.as_str(),
                             connect_load_changed[sender] => move |this_webview, _load_event| {
-                                sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).unwrap();
+                                sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
                             },
                             connect_title_notify[sender] => move |this_webview| {
                                 let title = this_webview.title().map(|title| ToString::to_string(&title));
@@ -100,11 +100,9 @@ impl Component for WebWindow {
                             connect_create[sender] => move |this_webview, _navigation_action| {
                                 let new_webview = webkit6::glib::Object::builder::<webkit6::WebView>().property("related-view", this_webview).build();
                                 new_webview.set_vexpand(true);
-                                let sender_clone = sender.clone();
-                                let new_webview_clone = new_webview.clone();
-                                new_webview.connect_ready_to_show(move |_| {
-                                    sender_clone.input(WebWindowInput::CreateSmallWebWindow(new_webview_clone.clone()));
-                                });
+                                new_webview.connect_ready_to_show(clone!(@strong sender, @strong new_webview => move |_| {
+                                    sender.input(WebWindowInput::CreateSmallWebWindow(new_webview.clone()));
+                                }));
                                 new_webview.into()
 
                             },
@@ -114,7 +112,7 @@ impl Component for WebWindow {
             },
 
             connect_close_request[sender] => move |_| {
-                sender.output(WebWindowOutput::Close).unwrap();
+                sender.output(WebWindowOutput::Close).expect("Could not send output WebWindowOutput::Close");
                 gtk::glib::Propagation::Stop
             } ,
 
@@ -167,18 +165,15 @@ impl Component for WebWindow {
 
         // Handle things related to the Network Session
         let toast_overlay_widget_clone = widgets.toast_overlay.clone();
-        let root_clone = root.clone();
         if let Some(session) = widgets.web_view.network_session() {
             // Handle downloads
-            session.connect_download_started(move |this_session, download_object| {
-                let toast_overlay_widget_clone_clone_1 = toast_overlay_widget_clone.clone();
-                let toast_overlay_widget_clone_clone_2 = toast_overlay_widget_clone.clone();
-                download_object.connect_failed(move |this_download_object, error| {
+            session.connect_download_started(clone!(@strong toast_overlay_widget_clone as toast_overlay => move |this_session, download_object| {
+                download_object.connect_failed(clone!(@strong toast_overlay => move |this_download_object, error| {
                     eprintln!("{}", error.to_string());
-                    toast_overlay_widget_clone_clone_1
+                    toast_overlay
                         .add_toast(adw::Toast::new("Download failed"));
-                });
-                download_object.connect_finished(move |this_download_object| {
+                }));
+                download_object.connect_finished(clone!(@strong toast_overlay => move |this_download_object| {
                     let toast = adw::Toast::new("File saved to Downloads folder");
                     toast.set_button_label(Some("Open"));
                     let downloaded_file_path = match this_download_object.destination() {
@@ -202,9 +197,9 @@ impl Component for WebWindow {
                             }
                         });
                     });
-                    toast_overlay_widget_clone_clone_2.add_toast(toast);
-                });
-            });
+                    toast_overlay.add_toast(toast);
+                }));
+            }));
 
             // Enable Intelligent Tracking Prevention
             session.set_itp_enabled(true);
@@ -212,10 +207,14 @@ impl Component for WebWindow {
             // Handle persistent cookies
             if let Some(cookie_manager) = session.cookie_manager() {
                 if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    create_dir_all(dir.data_dir()).unwrap();
+                    create_dir_all(dir.data_dir()).expect("Could not create XDG_DATA_DIR");
                     let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
                     cookie_manager.set_persistent_storage(
-                        &cookiesdb_file_path.into_os_string().into_string().unwrap()[..],
+                        cookiesdb_file_path
+                            .into_os_string()
+                            .into_string()
+                            .expect("Could not build cookiesdb_file_path")
+                            .as_str(),
                         webkit6::CookiePersistentStorage::Sqlite,
                     );
                 }
@@ -253,7 +252,7 @@ impl Component for WebWindow {
                             .title()
                             .map(|title| ToString::to_string(&title));
                         small_web_window_widget
-                            .set_title(Some(&title.unwrap_or(String::from(""))[..]));
+                            .set_title(Some(title.unwrap_or(String::from("")).as_str()));
                     }),
                 );
                 smallwebwindow.model().web_view.connect_close(
@@ -277,54 +276,53 @@ impl Component for WebWindow {
             }
             WebWindowInput::TitleChanged(title) => {
                 widgets.web_window.set_title(Some(title.as_str()));
-                sender.output(WebWindowOutput::TitleChanged(title)).unwrap();
+                sender
+                    .output(WebWindowOutput::TitleChanged(title))
+                    .expect("Could not send output WebWindowOutput::TitleChanged");
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
                 .add_toast(adw::Toast::new("This page is insecure")),
             WebWindowInput::Screenshot => {
-                let web_window_widget_clone = widgets.web_window.clone();
-                let toast_overlay_widget_clone = widgets.toast_overlay.clone();
                 widgets.web_view.snapshot(
                     webkit6::SnapshotRegion::Visible,
                     webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
                     gtk::gio::Cancellable::NONE,
-                    move |snapshot_result| match snapshot_result {
+                    clone!(@strong widgets.web_window as web_window, @strong widgets.toast_overlay as toast_overlay => move |snapshot_result| match snapshot_result {
                         Ok(texture) => {
                             // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
-                            web_window_widget_clone.present();
-                            let sender_clone = sender.clone();
+                            web_window.present();
                             // Using async but not threads because WebWindowInput cannot be sent across threads due to one of the variants carrying a WebView
-                            let animation_timing_handle = relm4::spawn_local(async move {
+                            let animation_timing_handle = relm4::spawn_local(clone!(@strong sender => async move {
                                 // Wait for 300ms for the WebWindow to be in focus
                                 tokio::time::sleep(Duration::from_millis(300)).await;
                                 // Add the screenshot flash box to the main_overlay of the WebWindow
-                                sender_clone.input(WebWindowInput::BeginScreenshotFlash);
+                                sender.input(WebWindowInput::BeginScreenshotFlash);
                                 // Wait for the animation to finish
                                 tokio::time::sleep(Duration::from_millis(830)).await;
                                 // Remoe the screenshot flash box
-                                sender_clone.input(WebWindowInput::ScreenshotFlashFinished);
+                                sender.input(WebWindowInput::ScreenshotFlashFinished);
                                 // Wait for another 350ms to prevent whiplash
                                 tokio::time::sleep(Duration::from_millis(350)).await;
                                 // Return focus back to main app window
-                                sender_clone
+                                sender
                                     .output(WebWindowOutput::ReturnToMainAppWindow)
-                                    .unwrap();
-                            });
+                                    .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
+                            }));
                             // Function to add an error message to explain what went wrong in case of a failed screenshot save
                             let present_error_toast = |error_message: String| {
-                                toast_overlay_widget_clone
+                                toast_overlay
                                     .add_toast(adw::Toast::new(&error_message));
                             };
                             if let Some(dir) = directories::UserDirs::new() {
                                 // Create the ~/Pictures/Screenshots folder if it doesn't exist
                                 if let Err(_) = create_dir_all(Path::new(
                                     &dir.picture_dir()
-                                        .unwrap()
+                                        .expect("Could not find XDG_PICTURE_DIR")
                                         .join("Screenshots")
                                         .into_os_string()
                                         .into_string()
-                                        .unwrap(),
+                                        .expect("Could not build path XDG_PICTURE_DIR/Screenshots"),
                                 )) {
                                     present_error_toast(
                                         "Could not create ~/Pictures/Screenshots".into(),
@@ -336,22 +334,22 @@ impl Component for WebWindow {
                                     let suffix_str = suffix.to_string();
                                     let path = dir
                                         .picture_dir()
-                                        .unwrap()
+                                        .expect("Could not find XDG_PICTURE_DIR")
                                         .join("Screenshots")
                                         .join(
                                             "Screenshot".to_owned()
-                                                + if suffix != 0 { &suffix_str[..] } else { "" }
+                                                + if suffix != 0 { suffix_str.as_str() } else { "" }
                                                 + ".png",
                                         )
                                         .into_os_string()
                                         .into_string()
-                                        .unwrap();
+                                        .expect("Could not build path screenshot_save_path");
                                     path
                                 };
                                 // Increment the suffix until the file doesn't already exist in the folder
                                 let mut suffix: usize = 0;
                                 let screenshot_save_path_final = {
-                                    while Path::new(&screenshot_save_path(suffix)[..]).exists() {
+                                    while Path::new(screenshot_save_path(suffix).as_str()).exists() {
                                         suffix += 1;
                                     }
                                     screenshot_save_path(suffix)
@@ -405,15 +403,15 @@ impl Component for WebWindow {
                                     //         });
                                     // });
                                 });
-                                toast_overlay_widget_clone.add_toast(toast);
+                                toast_overlay.add_toast(toast);
                             }
                         }
                         Err(error) => {
                             eprintln!("Could not save screenshot: {}", error.to_string());
-                            toast_overlay_widget_clone
+                            toast_overlay
                                 .add_toast(adw::Toast::new("Failed to take screenshot"))
                         }
-                    },
+                    }),
                 )
             }
             WebWindowInput::BeginScreenshotFlash => {
