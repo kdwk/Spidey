@@ -17,7 +17,7 @@ use std::{
 use url::Url;
 
 use crate::config::{APP_ID, PROFILE};
-use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow, IS_MAIN_WINDOW_OPEN};
+use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};
 
 pub(super) struct App {
     url_entry_buffer: gtk::EntryBuffer,
@@ -120,10 +120,6 @@ impl Component for App {
                     }
                 }
             },
-            connect_close_request[sender] => move |_| {
-                *IS_MAIN_WINDOW_OPEN.write() = false;
-                gtk::glib::Propagation::Proceed
-            }
         }
     }
 
@@ -214,8 +210,6 @@ impl Component for App {
         app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
         app_window_action_group.add_action(show_about);
         app_window_action_group.register_for_widget(root);
-        // Notify main function that a Main Window is now running
-        *IS_MAIN_WINDOW_OPEN.write() = true;
         ComponentParts {
             model: model,
             widgets: widgets,

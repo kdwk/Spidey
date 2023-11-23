@@ -9,13 +9,11 @@ mod webwindowcontrolbar;
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
     gtk::prelude::*,
-    main_application, RelmApp, SharedState,
+    main_application, RelmApp,
 };
 
 use app::App;
 use setup::setup;
-
-static IS_MAIN_WINDOW_OPEN: SharedState<bool> = SharedState::new();
 
 relm4::new_action_group!(AppActionGroup, "app");
 relm4::new_stateless_action!(QuitAction, AppActionGroup, "quit");
@@ -29,12 +27,6 @@ fn main() {
         .init();
 
     setup();
-
-    // let mut is_main_window_open = false;
-    // let (sender, receiver) = relm4::channel();
-    // IS_MAIN_WINDOW_OPEN.subscribe(&sender, move |&value| {
-    //     is_main_window_open = value;
-    // });
 
     let app = main_application();
     app.set_resource_base_path(Some("/com/github/kdwk/Spidey/"));
