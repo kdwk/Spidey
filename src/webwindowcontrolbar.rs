@@ -99,12 +99,12 @@ impl FactoryComponent for WebWindowControlBar {
                 set_label: &self.label,
             },
 
-            #[name(action_menu_button)]
-            gtk::MenuButton{
-                set_icon_name: "menu",
-                #[wrap(Some)]
-                set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
-            },
+            // #[name(action_menu_button)]
+            // gtk::MenuButton{
+            //     set_icon_name: "menu",
+            //     #[wrap(Some)]
+            //     set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
+            // },
 
             #[name(screenshot_btn)]
             gtk::Button {
