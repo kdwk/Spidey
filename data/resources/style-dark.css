@@ -5,6 +5,10 @@
     background: rgba(61, 56, 70, 1);
   }
 
+  .return-to-main {
+    background: rgba(61, 56, 70, 1);
+  }
+
   @keyframes screenshot-flash {
     0% {opacity: 0;}
     20% {opacity: 1;}

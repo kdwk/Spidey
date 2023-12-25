@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use relm4::gtk::prelude::*;
+use relm4::actions::{RelmAction, RelmActionGroup};
+use relm4::gtk::{glib::clone, prelude::*};
 use relm4::prelude::*;
 use webkit6::prelude::*;
 
@@ -38,6 +39,9 @@ pub enum WebWindowControlBarOutput {
     Remove(DynamicIndex), // pass the id
 }
 
+relm4::new_action_group!(WindowActionGroup, "win");
+relm4::new_stateless_action!(ScreenshotAction, WindowActionGroup, "screenshot");
+relm4::new_stateless_action!(FocusAction, WindowActionGroup, "focus");
 #[relm4::factory(pub)]
 impl FactoryComponent for WebWindowControlBar {
     type Init = WebWindowControlBarInit;
@@ -95,6 +99,13 @@ impl FactoryComponent for WebWindowControlBar {
                 set_label: &self.label,
             },
 
+            #[name(action_menu_button)]
+            gtk::MenuButton{
+                set_icon_name: "menu",
+                #[wrap(Some)]
+                set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
+            },
+
             #[name(screenshot_btn)]
             gtk::Button {
                 add_css_class: "circular",
@@ -124,6 +135,13 @@ impl FactoryComponent for WebWindowControlBar {
                 set_tooltip_text: Some("Close"),
                 connect_clicked => WebWindowControlBarInput::Close,
             }
+        }
+    }
+
+    menu! {
+        action_menu: {
+            "Screenshot" => ScreenshotAction,
+            "Focus" => FocusAction,
         }
     }
 
@@ -159,6 +177,7 @@ impl FactoryComponent for WebWindowControlBar {
                     user_content_filter_store,
                 ))
                 .expect("Could not send WebWindowInput::RetroactivelyLoadUserContentFilter to WebWindow"),
+            WebWindowControlBarInput::ReturnToMainAppWindow => sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow).expect("Could not send output WebWindowControlBarOutput::ReturnToMainAppWindow")
         }
     }
 
@@ -178,6 +197,18 @@ impl FactoryComponent for WebWindowControlBar {
                         WebWindowControlBarInput::ReturnToMainAppWindow
                     }
                 });
+
+        let screenshot_action: RelmAction<ScreenshotAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowControlBarInput::Screenshot);
+            }))
+        };
+        let focus_action: RelmAction<FocusAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowControlBarInput::Focus);
+            }))
+        };
+
         Self {
             id: index.clone(),
             label: init.0,

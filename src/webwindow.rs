@@ -37,6 +37,7 @@ pub enum WebWindowInput {
     BeginScreenshotFlash,
     ScreenshotFlashFinished,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
+    ReturnToMainAppWindow,
 }
 
 #[derive(Debug)]
@@ -67,11 +68,20 @@ impl Component for WebWindow {
                     set_valign: gtk::Align::Start,
                     set_height_request: 20,
                 },
-                add_overlay = &gtk::WindowControls {
-                    set_halign: gtk::Align::End,
+                add_overlay = &gtk::Button {
+                    set_halign: gtk::Align::Start,
                     set_valign: gtk::Align::Start,
                     set_margin_top: 5,
                     set_margin_end: 5,
+                    set_icon_name: "move-to-window",
+                    add_css_class: "return-to-main",
+                    set_tooltip_text: Some("Return to Main Window"),
+                    connect_clicked => WebWindowInput::ReturnToMainAppWindow
+                },
+                add_overlay = &gtk::WindowControls {
+                    set_halign: gtk::Align::End,
+                    set_valign: gtk::Align::Start,
+                    set_margin_all: 5,
                     set_side: gtk::PackType::End,
                     add_css_class: "webwindow-controls",
                 },
@@ -420,6 +430,9 @@ impl Component for WebWindow {
             WebWindowInput::ScreenshotFlashFinished => widgets
                 .main_overlay
                 .remove_overlay(&self.screenshot_flash_box),
+            WebWindowInput::ReturnToMainAppWindow => sender
+                .output(WebWindowOutput::ReturnToMainAppWindow)
+                .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
         }
     }
 }
