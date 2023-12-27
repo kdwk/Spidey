@@ -241,7 +241,11 @@ impl Component for App {
             AppInput::ShowAboutWindow => {
                 adw::AboutWindow::builder()
                     .transient_for(root)
-                    .application_icon("application-x-executable")
+                    .application_icon(if PROFILE == "Devel" {
+                        "com.github.kdwk.Spidey.Devel"
+                    } else {
+                        "com.github.kdwk.Spidey"
+                    })
                     .developer_name("Kdwk")
                     .version("1.0")
                     .comments("World Wide Web-crawler")
