@@ -22,8 +22,8 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="5.3841992"
-     inkscape:cx="54.139899"
-     inkscape:cy="73.455677"
+     inkscape:cx="92.028542"
+     inkscape:cy="67.326632"
      inkscape:window-width="1920"
      inkscape:window-height="1011"
      inkscape:window-x="0"
@@ -648,22 +648,23 @@
   <g
      id="g24"
      inkscape:label="compass"
-     transform="matrix(1.1692133,0,0,1.0581091,-12.37618,-3.864957)">
+     transform="matrix(1.8750238,0,0,1.8100588,-55.241943,-47.044414)"
+     style="display:inline">
     <circle
-       style="display:inline;fill:url(#linearGradient20);stroke-width:11.619;stroke-dasharray:none"
+       style="display:none;fill:url(#linearGradient20);stroke-width:11.619;stroke-dasharray:none"
        id="circle25"
        cx="63.724548"
        cy="71.836304"
        r="30.27257" />
     <rect
-       style="fill:#073268;fill-opacity:1;stroke-width:8.80302"
+       style="display:none;fill:#073268;fill-opacity:1;stroke-width:8.80302"
        id="rect18"
        width="60.545143"
        height="9.8776321"
        x="33.451981"
        y="61.958675" />
     <circle
-       style="fill:#5889c5;fill-opacity:1;stroke-width:11.619;stroke-dasharray:none"
+       style="display:none;fill:#5889c5;fill-opacity:1;stroke-width:11.619;stroke-dasharray:none"
        id="path7"
        cx="63.724552"
        cy="61.958675"

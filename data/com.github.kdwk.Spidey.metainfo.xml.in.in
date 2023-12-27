@@ -1,23 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kdwk 2019 <kdwkleung@proton.me> -->
+<!-- Kdwk 2023 <kdwkleung@proton.me> -->
 <component type="desktop-application">
   <id>@app-id@</id>
   <metadata_license>CC0</metadata_license>
   <!-- Insert your license of choice here -->
   <!-- <project_license>MIT</project_license> -->
   <name>Spidey</name>
-  <summary>Write a GTK + Rust application</summary>
+  <summary>World Wide Web-crawler</summary>
   <description>
-    <p>A boilerplate template for GTK + Rust. It uses Meson as a build system and has flatpak support by default.</p>
+    <p>Your friendly neighbourhood world wide web-crawler is here to re-imagine how you work and play on the web! Use a central panel to launch and control seamless Web Windows so you can focus on long tasks distraction-free and enjoy media without interruption.</p>
   </description>
   <screenshots>
     <screenshot type="default">
-      <image>https://gitlab.gnome.org/bilelmoussaoui/spidey/raw/master/data/resources/screenshots/screenshot1.png</image>
-      <caption>Main window</caption>
+      <image>data/resources/screenshots/screenshot2.png</image>
+      <caption>Spidey for play</caption>
+    </screenshot>
+    <screenshot type="default">
+      <image>data/resources/screenshots/screenshot3.png</image>
+      <caption>Spidey for work</caption>
     </screenshot>
   </screenshots>
-  <url type="homepage">https://gitlab.gnome.org/bilelmoussaoui/spidey</url>
-  <url type="bugtracker">https://gitlab.gnome.org/bilelmoussaoui/spidey/issues</url>
+  <url type="homepage">https://github.com/kdwk/spidey</url>
+  <url type="bugtracker">https://github.com/kdwk/spidey/issues</url>
   <content_rating type="oars-1.0" />
   <releases>
     <release version="0.1.0" date="2019-07-11" />
