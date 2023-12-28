@@ -39,9 +39,13 @@ pub enum WebWindowControlBarOutput {
     Remove(DynamicIndex), // pass the id
 }
 
-relm4::new_action_group!(WindowActionGroup, "win");
-relm4::new_stateless_action!(ScreenshotAction, WindowActionGroup, "screenshot");
-relm4::new_stateless_action!(FocusAction, WindowActionGroup, "focus");
+relm4::new_action_group!(WebWindowControlBarActionGroup, "webwindowcontrolbar");
+relm4::new_stateless_action!(
+    ScreenshotAction,
+    WebWindowControlBarActionGroup,
+    "screenshot"
+);
+relm4::new_stateless_action!(FocusAction, WebWindowControlBarActionGroup, "focus");
 #[relm4::factory(pub)]
 impl FactoryComponent for WebWindowControlBar {
     type Init = WebWindowControlBarInit;
@@ -99,31 +103,14 @@ impl FactoryComponent for WebWindowControlBar {
                 set_label: &self.label,
             },
 
-            // #[name(action_menu_button)]
-            // gtk::MenuButton{
-            //     set_icon_name: "menu",
-            //     #[wrap(Some)]
-            //     set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
-            // },
-
-            #[name(screenshot_btn)]
-            gtk::Button {
+            #[name(action_menu_button)]
+            gtk::MenuButton{
                 add_css_class: "circular",
                 add_css_class: "flat",
-                add_css_class: "toolbar-button",
-                set_icon_name: "screenshooter",
-                set_tooltip_text: Some("Screenshot"),
-                connect_clicked => WebWindowControlBarInput::Screenshot,
-            },
-
-            #[name(focus_btn)]
-            gtk::Button {
-                add_css_class: "circular",
-                add_css_class: "flat",
-                add_css_class: "toolbar-button",
-                set_icon_name: "multitasking-windows",
-                set_tooltip_text: Some("Focus"),
-                connect_clicked => WebWindowControlBarInput::Focus,
+                set_icon_name: "menu",
+                set_tooltip_text: Some("Actions"),
+                #[wrap(Some)]
+                set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
             },
 
             #[name(close_btn)]
@@ -197,7 +184,22 @@ impl FactoryComponent for WebWindowControlBar {
                         WebWindowControlBarInput::ReturnToMainAppWindow
                     }
                 });
+        Self {
+            id: index.clone(),
+            label: init.0,
+            webwindow: new_webwindow,
+            web_view_can_go_back: false,
+            web_view_can_go_forward: false,
+        }
+    }
 
+    fn init_widgets(
+        &mut self,
+        index: &Self::Index,
+        root: &Self::Root,
+        returned_widget: &<Self::ParentWidget as relm4::factory::FactoryView>::ReturnedWidget,
+        sender: FactorySender<Self>,
+    ) -> Self::Widgets {
         let screenshot_action: RelmAction<ScreenshotAction> = {
             RelmAction::new_stateless(clone!(@strong sender => move |_| {
                 sender.input(WebWindowControlBarInput::Screenshot);
@@ -209,12 +211,23 @@ impl FactoryComponent for WebWindowControlBar {
             }))
         };
 
-        Self {
-            id: index.clone(),
-            label: init.0,
-            webwindow: new_webwindow,
-            web_view_can_go_back: false,
-            web_view_can_go_forward: false,
+        let mut webwindow_control_bar_action_group: RelmActionGroup<
+            WebWindowControlBarActionGroup,
+        > = RelmActionGroup::new();
+
+        webwindow_control_bar_action_group.add_action(screenshot_action);
+        webwindow_control_bar_action_group.add_action(focus_action);
+        webwindow_control_bar_action_group.register_for_widget(root);
+
+        let widgets = view_output!();
+
+        Self::Widgets {
+            back_btn: widgets.back_btn,
+            forward_btn: widgets.forward_btn,
+            refresh_btn: widgets.refresh_btn,
+            label: widgets.label,
+            action_menu_button: widgets.action_menu_button,
+            close_btn: widgets.close_btn,
         }
     }
 }
