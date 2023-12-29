@@ -5,7 +5,7 @@ use directories;
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
 use relm4::gtk::{glib::clone, prelude::*};
-use relm4::prelude::*;
+use relm4::{prelude::*, ComponentController};
 use reqwest;
 use std::error::Error;
 use std::io::Write;
@@ -16,7 +16,7 @@ use std::{
 };
 use url::Url;
 
-use crate::config::{APP_ID, PROFILE};
+use crate::config::{APP_ID, PROFILE, VERSION};
 use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};
 
 pub(super) struct App {
@@ -26,12 +26,18 @@ pub(super) struct App {
 }
 
 relm4::new_action_group!(AppWindowActionGroup, "win");
-relm4::new_stateless_action!(ShowAbout, AppWindowActionGroup, "show_about");
+relm4::new_stateless_action!(ShowAboutWindow, AppWindowActionGroup, "show_about");
+relm4::new_stateless_action!(
+    ShowKeyboardShortcutsWindow,
+    AppWindowActionGroup,
+    "show_shortcuts"
+);
 #[derive(Debug)]
 pub enum AppInput {
     NewWebWindow, // Also handles adding a WebWindowControlBar
     RemoveWebWindowControlBar(DynamicIndex),
     ShowAboutWindow,
+    ShowKeyboardShortcutsWindow,
     SetUpUserContentFilterStore,
     PresentWindow,
 }
@@ -203,12 +209,18 @@ impl Component for App {
         let app = relm4::main_adw_application();
         let mut app_window_action_group = RelmActionGroup::<AppWindowActionGroup>::new();
         // let sender_clone = sender.clone();
-        let show_about: RelmAction<ShowAbout> =
+        let show_about_window: RelmAction<ShowAboutWindow> =
             RelmAction::new_stateless(clone!(@strong sender => move |_| {
                 sender.input(AppInput::ShowAboutWindow);
             }));
-        app.set_accelerators_for_action::<ShowAbout>(&["<Alt>A"]);
-        app_window_action_group.add_action(show_about);
+        let show_keyboard_shortcuts_window: RelmAction<ShowKeyboardShortcutsWindow> =
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(AppInput::ShowKeyboardShortcutsWindow);
+            }));
+        app.set_accelerators_for_action::<ShowAboutWindow>(&["<Alt>A"]);
+        app.set_accelerators_for_action::<ShowKeyboardShortcutsWindow>(&["<Ctrl>K"]);
+        app_window_action_group.add_action(show_about_window);
+        app_window_action_group.add_action(show_keyboard_shortcuts_window);
         app_window_action_group.register_for_widget(root);
         ComponentParts {
             model: model,
@@ -309,6 +321,18 @@ impl Component for App {
             }
 
             AppInput::PresentWindow => root.present(),
+
+            AppInput::ShowKeyboardShortcutsWindow => {
+                // let shortcuts_window = gtk::ShortcutsWindow::builder()
+                //     .transient_for(root)
+                //     .modal(true)
+                //     .child(&gtk::ShortcutsSection::builder()
+                //             .section_name("app")
+                //             .title("App shortcuts")
+                //             .build())
+                //     .build();
+                // shortcuts_window.present();
+            }
         }
     }
 }
