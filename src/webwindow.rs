@@ -7,6 +7,8 @@ use std::{
     io::Write,
     path::Path,
     process::Command,
+    rc::Rc,
+    sync::{atomic::AtomicBool, Arc},
     thread,
     time::Duration,
 };
@@ -178,12 +180,15 @@ impl Component for WebWindow {
         if let Some(session) = widgets.web_view.network_session() {
             // Handle downloads
             session.connect_download_started(clone!(@strong toast_overlay_widget_clone as toast_overlay => move |this_session, download_object| {
-                download_object.connect_failed(clone!(@strong toast_overlay => move |this_download_object, error| {
+                let download_did_fail = Arc::new(AtomicBool::new(false));
+                download_object.connect_failed(clone!(@strong toast_overlay ,@strong download_did_fail => move |this_download_object, error| {
+                    (*download_did_fail).store(true, std::sync::atomic::Ordering::Relaxed);
                     eprintln!("{}", error.to_string());
                     toast_overlay
                         .add_toast(adw::Toast::new("Download failed"));
                 }));
-                download_object.connect_finished(clone!(@strong toast_overlay => move |this_download_object| {
+                download_object.connect_finished(clone!(@strong toast_overlay, @strong download_did_fail => move |this_download_object| {
+                    if (*download_did_fail).load(std::sync::atomic::Ordering::Relaxed) {return;}
                     let toast = adw::Toast::new("File saved to Downloads folder");
                     toast.set_button_label(Some("Open"));
                     let downloaded_file_path = match this_download_object.destination() {
@@ -402,16 +407,23 @@ impl Component for WebWindow {
                                     .button_label("Open")
                                     .build();
                                 toast.connect_button_clicked(move |_| {
-                                    // relm4::spawn_local(async move {
-                                    //     let _ = OpenFileRequest::default()
-                                    //         .ask(true)
-                                    //         .send_file(&screenshot_file)
-                                    //         .await
-                                    //         .is_ok_and(|req| {
-                                    //             let _ = req.response();
-                                    //             true
-                                    //         });
-                                    // });
+                                    relm4::spawn_local(clone!(@strong screenshot_save_path_final => async move {
+                                        let screenshot_file = match OpenOptions::new().read(true).open(Path::new(&screenshot_save_path_final)){
+                                            Ok(file) => file,
+                                            Err(_) => {
+                                                eprintln!("Could not open {} for read", screenshot_save_path_final);
+                                                return;
+                                            }
+                                        };
+                                        let _ = OpenFileRequest::default()
+                                            .ask(true)
+                                            .send_file(&screenshot_file)
+                                            .await
+                                            .is_ok_and(|req| {
+                                                let _ = req.response();
+                                                true
+                                            });
+                                    }));
                                 });
                                 toast_overlay.add_toast(toast);
                             }
