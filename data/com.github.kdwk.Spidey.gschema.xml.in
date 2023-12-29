@@ -17,5 +17,9 @@
       <default>0</default>
       <summary>Timestamp of when the XDG_DATA_DIR/adblock.json was last downloaded from the Internet</summary>
     </key>
+    <key name="urls" type="s">
+      <default>""</default>
+      <summary>A list of URLs in the current session to be saved, separated by comma</summary>
+    </key>
   </schema>
 </schemalist>

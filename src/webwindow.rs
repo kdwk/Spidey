@@ -26,7 +26,7 @@ use crate::config::{APP_ID, PROFILE};
 use crate::smallwebwindow::*;
 
 pub struct WebWindow {
-    url: String,
+    pub url: String,
     screenshot_flash_box: gtk::Box,
 }
 

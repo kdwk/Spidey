@@ -12,7 +12,7 @@ use crate::webwindow::*;
 pub struct WebWindowControlBar {
     id: DynamicIndex,
     label: String,
-    webwindow: Controller<WebWindow>,
+    pub webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
     web_view_can_go_forward: bool,
 }

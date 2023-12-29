@@ -40,6 +40,8 @@ pub enum AppInput {
     ShowKeyboardShortcutsWindow,
     SetUpUserContentFilterStore,
     PresentWindow,
+    SaveUrls,
+    RestoreUrls,
 }
 
 #[relm4::component(pub)]
@@ -126,6 +128,11 @@ impl Component for App {
                     }
                 }
             },
+
+            connect_close_request[sender] => move |_| {
+                sender.input(AppInput::SaveUrls);
+                gtk::glib::Propagation::Stop
+            }
         }
     }
 
@@ -198,6 +205,8 @@ impl Component for App {
                 WebWindowControlBarOutput::ReturnToMainAppWindow => AppInput::PresentWindow,
             });
 
+        sender.input(AppInput::RestoreUrls);
+
         // Standard component initialization procedures
         let model = App {
             webwindowcontrolbars: webwindowcontrolbars,
@@ -218,7 +227,7 @@ impl Component for App {
                 sender.input(AppInput::ShowKeyboardShortcutsWindow);
             }));
         app.set_accelerators_for_action::<ShowAboutWindow>(&["<Alt>A"]);
-        app.set_accelerators_for_action::<ShowKeyboardShortcutsWindow>(&["<Ctrl>K"]);
+        app.set_accelerators_for_action::<ShowKeyboardShortcutsWindow>(&["<Ctrl>question"]);
         app_window_action_group.add_action(show_about_window);
         app_window_action_group.add_action(show_keyboard_shortcuts_window);
         app_window_action_group.register_for_widget(root);
@@ -332,6 +341,54 @@ impl Component for App {
                 //             .build())
                 //     .build();
                 // shortcuts_window.present();
+            }
+
+            AppInput::RestoreUrls => {
+                let gschema_id = if PROFILE == "Devel" {
+                    "com.github.kdwk.Spidey.Devel"
+                } else {
+                    "com.github.kdwk.Spidey"
+                };
+                let gsettings = gtk::gio::Settings::new(gschema_id);
+                let urls = gsettings.string("urls").to_string();
+                println!("{urls}");
+                let url_vec = if urls.len() > 0 {
+                    urls.split(" ")
+                        .map(|url| url.to_string())
+                        .collect::<Vec<String>>()
+                } else {
+                    vec![]
+                };
+                for url in url_vec {
+                    self.webwindowcontrolbars
+                        .guard()
+                        .push_back((url, self.user_content_filter_store_option.clone()));
+                }
+            }
+
+            AppInput::SaveUrls => {
+                let gschema_id = if PROFILE == "Devel" {
+                    "com.github.kdwk.Spidey.Devel"
+                } else {
+                    "com.github.kdwk.Spidey"
+                };
+                let gsettings = gtk::gio::Settings::new(gschema_id);
+                let urls = self
+                    .webwindowcontrolbars
+                    .guard()
+                    .iter()
+                    .map(|webwindowcontrolbar| webwindowcontrolbar.webwindow.model().url.clone())
+                    .collect::<Vec<String>>();
+                let mut urls_string = String::from("");
+                for url in urls {
+                    urls_string.push_str(&url);
+                    urls_string.push_str(" ");
+                }
+                if urls_string.ends_with(" ") {
+                    urls_string.pop();
+                }
+                let _ = gsettings.set_string("urls", urls_string.as_str());
+                relm4::main_application().quit();
             }
         }
     }
