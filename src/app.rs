@@ -127,11 +127,6 @@ impl Component for App {
                         }
                     }
                 }
-            },
-
-            connect_close_request[sender] => move |_| {
-                sender.input(AppInput::SaveUrls);
-                gtk::glib::Propagation::Stop
             }
         }
     }
@@ -252,11 +247,13 @@ impl Component for App {
                         .guard()
                         .push_back((final_url, self.user_content_filter_store_option.clone()));
                     self.url_entry_buffer.set_text("");
+                    sender.input(AppInput::SaveUrls);
                 }
             }
 
             AppInput::RemoveWebWindowControlBar(id) => {
                 self.webwindowcontrolbars.guard().remove(id.current_index());
+                sender.input(AppInput::SaveUrls);
             }
 
             AppInput::ShowAboutWindow => {
@@ -388,7 +385,6 @@ impl Component for App {
                     urls_string.pop();
                 }
                 let _ = gsettings.set_string("urls", urls_string.as_str());
-                relm4::main_application().quit();
             }
         }
     }
