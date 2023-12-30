@@ -333,11 +333,11 @@ impl Component for WebWindow {
                                 // Create the ~/Pictures/Screenshots folder if it doesn't exist
                                 if let Err(_) = create_dir_all(Path::new(
                                     &dir.picture_dir()
-                                        .expect("Could not find XDG_PICTURE_DIR")
+                                        .expect("Could not find XDG_PICTURES_DIR")
                                         .join("Screenshots")
                                         .into_os_string()
                                         .into_string()
-                                        .expect("Could not build path XDG_PICTURE_DIR/Screenshots"),
+                                        .expect("Could not build path XDG_PICTURES_DIR/Screenshots"),
                                 )) {
                                     present_error_toast(
                                         "Could not create ~/Pictures/Screenshots".into(),

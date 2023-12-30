@@ -1,8 +1,11 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use ashpd::desktop::clipboard::Clipboard;
+use ashpd::desktop::{Request, Session};
 use relm4::actions::{RelmAction, RelmActionGroup};
 use relm4::gtk::{glib::clone, prelude::*};
 use relm4::prelude::*;
+use webkit6::gdk::ContentProvider;
 use webkit6::prelude::*;
 
 use crate::app::AppInput;
@@ -31,6 +34,7 @@ pub enum WebWindowControlBarInput {
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
     LoadChanged((bool, bool)),
     TitleChanged(String),
+    CopyLink,
 }
 
 #[derive(Debug)]
@@ -46,6 +50,7 @@ relm4::new_stateless_action!(
     "screenshot"
 );
 relm4::new_stateless_action!(FocusAction, WebWindowControlBarActionGroup, "focus");
+relm4::new_stateless_action!(CopyLinkAction, WebWindowControlBarActionGroup, "copy-link");
 #[relm4::factory(pub)]
 impl FactoryComponent for WebWindowControlBar {
     type Init = WebWindowControlBarInit;
@@ -129,43 +134,55 @@ impl FactoryComponent for WebWindowControlBar {
         action_menu: {
             "Screenshot" => ScreenshotAction,
             "Focus" => FocusAction,
+            "Copy Link" => CopyLinkAction,
         }
     }
 
-    fn update(&mut self, message: Self::Input, sender: FactorySender<Self>) {
+    fn update_with_view(
+        &mut self,
+        widgets: &mut Self::Widgets,
+        message: Self::Input,
+        sender: FactorySender<Self>,
+    ) {
         match message {
-            WebWindowControlBarInput::Close => {
-                self.webwindow.widgets().web_window.destroy();
-                let _ = sender.output(WebWindowControlBarOutput::Remove(self.id.clone()));
-            }
-            WebWindowControlBarInput::Back => self.webwindow.widgets().web_view.go_back(),
-            WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
-            WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
-            WebWindowControlBarInput::Screenshot => self
-                .webwindow
-                .sender()
-                .send(WebWindowInput::Screenshot)
-                .expect("Could not send WebWindowInput::Screenshot to WebWindow"),
-            WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
-            WebWindowControlBarInput::ReturnToMainAppWindow => {
-                let _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow);
-            }
-            WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
-                self.web_view_can_go_back = can_go_back;
-                self.web_view_can_go_forward = can_go_forward;
-            }
-            WebWindowControlBarInput::TitleChanged(title) => self.label = title,
-            WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(
-                user_content_filter_store,
-            ) => self
-                .webwindow
-                .sender()
-                .send(WebWindowInput::RetroactivelyLoadUserContentFilter(
+                WebWindowControlBarInput::Close => {
+                    self.webwindow.widgets().web_window.destroy();
+                    let _ = sender.output(WebWindowControlBarOutput::Remove(self.id.clone()));
+                }
+                WebWindowControlBarInput::Back => self.webwindow.widgets().web_view.go_back(),
+                WebWindowControlBarInput::Forward => self.webwindow.widgets().web_view.go_forward(),
+                WebWindowControlBarInput::Refresh => self.webwindow.widgets().web_view.reload(),
+                WebWindowControlBarInput::Screenshot => self
+                    .webwindow
+                    .sender()
+                    .send(WebWindowInput::Screenshot)
+                    .expect("Could not send WebWindowInput::Screenshot to WebWindow"),
+                WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
+                WebWindowControlBarInput::ReturnToMainAppWindow => {
+                    let _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow);
+                }
+                WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
+                    self.web_view_can_go_back = can_go_back;
+                    self.web_view_can_go_forward = can_go_forward;
+                }
+                WebWindowControlBarInput::TitleChanged(title) => self.label = title,
+                WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(
                     user_content_filter_store,
-                ))
-                .expect("Could not send WebWindowInput::RetroactivelyLoadUserContentFilter to WebWindow"),
-            WebWindowControlBarInput::ReturnToMainAppWindow => sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow).expect("Could not send output WebWindowControlBarOutput::ReturnToMainAppWindow")
-        }
+                ) => self
+                    .webwindow
+                    .sender()
+                    .send(WebWindowInput::RetroactivelyLoadUserContentFilter(
+                        user_content_filter_store,
+                    ))
+                    .expect("Could not send WebWindowInput::RetroactivelyLoadUserContentFilter to WebWindow"),
+                WebWindowControlBarInput::ReturnToMainAppWindow => sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow).expect("Could not send output WebWindowControlBarOutput::ReturnToMainAppWindow"),
+                WebWindowControlBarInput::CopyLink => {
+                    let clipboard = widgets.action_menu_button.clipboard();
+                    if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(&gtk::glib::Value::from(if let Some(uri)=self.webwindow.widgets().web_view.uri() {uri.to_string()} else {String::from("")})))) {
+                        eprintln!("Could not copy link to clipboard");
+                    }
+                }
+    }
     }
 
     fn init_model(init: Self::Init, index: &Self::Index, sender: FactorySender<Self>) -> Self {
@@ -210,6 +227,11 @@ impl FactoryComponent for WebWindowControlBar {
                 sender.input(WebWindowControlBarInput::Focus);
             }))
         };
+        let copy_link_action: RelmAction<CopyLinkAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowControlBarInput::CopyLink);
+            }))
+        };
 
         let mut webwindow_control_bar_action_group: RelmActionGroup<
             WebWindowControlBarActionGroup,
@@ -217,6 +239,7 @@ impl FactoryComponent for WebWindowControlBar {
 
         webwindow_control_bar_action_group.add_action(screenshot_action);
         webwindow_control_bar_action_group.add_action(focus_action);
+        webwindow_control_bar_action_group.add_action(copy_link_action);
         webwindow_control_bar_action_group.register_for_widget(root);
 
         let widgets = view_output!();
