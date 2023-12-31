@@ -15,6 +15,7 @@ use std::{
     thread,
 };
 use url::Url;
+use webkit6::prelude::WebViewExt;
 
 use crate::config::{APP_ID, PROFILE, VERSION};
 use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};
@@ -42,6 +43,7 @@ pub enum AppInput {
     PresentWindow,
     SaveUrls,
     RestoreUrls,
+    FocusUrlEntry,
 }
 
 #[relm4::component(pub)]
@@ -127,7 +129,8 @@ impl Component for App {
                         }
                     }
                 }
-            }
+            },
+            connect_activate_default => AppInput::FocusUrlEntry
         }
     }
 
@@ -348,7 +351,6 @@ impl Component for App {
                 };
                 let gsettings = gtk::gio::Settings::new(gschema_id);
                 let urls = gsettings.string("urls").to_string();
-                println!("{urls}");
                 let url_vec = if urls.len() > 0 {
                     urls.split(" ")
                         .map(|url| url.to_string())
@@ -374,17 +376,30 @@ impl Component for App {
                     .webwindowcontrolbars
                     .guard()
                     .iter()
-                    .map(|webwindowcontrolbar| webwindowcontrolbar.webwindow.model().url.clone())
+                    .map(|webwindowcontrolbar| {
+                        if let Some(uri) = webwindowcontrolbar.webwindow.widgets().web_view.uri() {
+                            uri.to_string()
+                        } else {
+                            String::from("")
+                        }
+                    })
                     .collect::<Vec<String>>();
                 let mut urls_string = String::from("");
                 for url in urls {
-                    urls_string.push_str(&url);
-                    urls_string.push_str(" ");
+                    if url.len() > 0 {
+                        urls_string.push_str(&url);
+                        urls_string.push_str(" ");
+                    }
                 }
                 if urls_string.ends_with(" ") {
                     urls_string.pop();
                 }
                 let _ = gsettings.set_string("urls", urls_string.as_str());
+            }
+
+            AppInput::FocusUrlEntry => {
+                println!("focus");
+                widgets.url_entry.grab_focus();
             }
         }
     }
