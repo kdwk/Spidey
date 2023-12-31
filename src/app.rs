@@ -130,7 +130,7 @@ impl Component for App {
                     }
                 }
             },
-            connect_activate_default => AppInput::FocusUrlEntry
+            connect_is_active_notify => AppInput::FocusUrlEntry
         }
     }
 
