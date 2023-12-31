@@ -6,34 +6,6 @@
   font-weight: bold;
 }
 
-.return-to-main {
-  opacity: 0;
-  background: rgba(239, 239, 239, 1);
-  border-radius: 50%;
-  padding: 1px;
-  margin-top: 4px;
-  margin-left: 10px;
-  transition: 0.1s ease-in-out;
-  -gtk-icon-size: 12px;
-}
-
-.return-to-main:hover {
-  opacity: 1;
-}
-
-.webwindow-controls {
-  opacity: 0;
-  transition: 0.1s ease-in-out;
-}
-
-.webwindow-controls button image {
-  background: rgba(239, 239, 239, 1);
-}
-
-.webwindow-controls:hover {
-  opacity: 1;
-}
-
 @keyframes screenshot-flash {
   0% {opacity: 0;}
   20% {opacity: 1;}

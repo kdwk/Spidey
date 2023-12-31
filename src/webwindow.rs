@@ -16,7 +16,7 @@ use std::{
 use relm4::actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup};
 use relm4::adw::prelude::*;
 use relm4::gtk::glib::clone;
-use relm4::gtk::prelude::*;
+use relm4::gtk::{prelude::WidgetExt, prelude::*, EventControllerMotion};
 use relm4::prelude::*;
 use tokio;
 use webkit6::{gio::SimpleAction, prelude::*};
@@ -32,6 +32,7 @@ pub struct WebWindow {
 
 #[derive(Debug)]
 pub enum WebWindowInput {
+    Back,
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     InsecureContentDetected,
@@ -40,6 +41,8 @@ pub enum WebWindowInput {
     ScreenshotFlashFinished,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
     ReturnToMainAppWindow,
+    ShowHeaderBar,
+    HideHeaderBar,
 }
 
 #[derive(Debug)]
@@ -63,63 +66,66 @@ impl Component for WebWindow {
             set_default_height: 1000,
             set_default_width: 1000,
 
-            #[name(main_overlay)]
-            gtk::Overlay {
-                add_overlay = &gtk::WindowHandle {
-                    set_halign: gtk::Align::Fill,
-                    set_valign: gtk::Align::Start,
-                    set_height_request: 20,
-                },
-                add_overlay = &gtk::Button {
-                    set_halign: gtk::Align::Start,
-                    set_valign: gtk::Align::Start,
-                    set_margin_top: 5,
-                    set_margin_end: 5,
-                    set_icon_name: "move-to-window",
-                    add_css_class: "return-to-main",
-                    set_tooltip_text: Some("Return to Main Window"),
-                    connect_clicked => WebWindowInput::ReturnToMainAppWindow
-                },
-                add_overlay = &gtk::WindowControls {
-                    set_halign: gtk::Align::End,
-                    set_valign: gtk::Align::Start,
-                    set_margin_all: 5,
-                    set_side: gtk::PackType::End,
-                    add_css_class: "webwindow-controls",
-                },
-                #[name(toast_overlay)]
-                adw::ToastOverlay {
-                    gtk::Box {
-                        set_orientation: gtk::Orientation::Vertical,
+            #[name(toast_overlay)]
+            adw::ToastOverlay {
+                #[name(main_overlay)]
+                gtk::Overlay {
+                    #[name(toolbar_view)]
+                    add_overlay = &adw::ToolbarView {
+                        set_halign: gtk::Align::Fill,
+                        set_valign: gtk::Align::Start,
+                        set_top_bar_style: adw::ToolbarStyle::Raised,
+                        set_reveal_top_bars: false,
 
-                        #[name(web_view)]
-                        webkit6::WebView {
-                            set_vexpand: true,
-                            load_uri: model.url.as_str(),
-                            connect_load_changed[sender] => move |this_webview, _load_event| {
-                                sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
-                            },
-                            connect_title_notify[sender] => move |this_webview| {
-                                let title = this_webview.title().map(|title| ToString::to_string(&title));
-                                sender.input(WebWindowInput::TitleChanged(match title {
-                                    Some(text) => text,
-                                    None => "".into()
-                                }));
-                            },
-                            connect_insecure_content_detected[sender] => move |_, _| {
-                                sender.input(WebWindowInput::InsecureContentDetected);
-                            },
-                            connect_create[sender] => move |this_webview, _navigation_action| {
-                                let new_webview = webkit6::glib::Object::builder::<webkit6::WebView>().property("related-view", this_webview).build();
-                                new_webview.set_vexpand(true);
-                                new_webview.connect_ready_to_show(clone!(@strong sender, @strong new_webview => move |_| {
-                                    sender.input(WebWindowInput::CreateSmallWebWindow(new_webview.clone()));
-                                }));
-                                new_webview.into()
+                        #[name(headerbar)]
+                        add_top_bar = &adw::HeaderBar {
+                            pack_start = &gtk::Box {
+                                set_orientation: gtk::Orientation::Horizontal,
+                                add_css_class: "webwindow-headerbar",
 
+                                gtk::Button {
+                                    set_icon_name: "left",
+                                    set_tooltip_text: Some("Back"),
+                                    connect_clicked => WebWindowInput::Back,
+                                }
                             },
-                        }
-                    }
+                        },
+                    },
+
+                    #[name(show_toolbars_box)]
+                    add_overlay = &gtk::Box {
+                        set_halign: gtk::Align::Fill,
+                        set_valign: gtk::Align::Start,
+                        set_height_request: 10,
+                    },
+
+                    #[name(web_view)]
+                    webkit6::WebView {
+                        set_vexpand: true,
+                        load_uri: model.url.as_str(),
+                        connect_load_changed[sender] => move |this_webview, _load_event| {
+                            sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
+                        },
+                        connect_title_notify[sender] => move |this_webview| {
+                            let title = this_webview.title().map(|title| ToString::to_string(&title));
+                            sender.input(WebWindowInput::TitleChanged(match title {
+                                Some(text) => text,
+                                None => String::from("")
+                            }));
+                        },
+                        connect_insecure_content_detected[sender] => move |_, _| {
+                            sender.input(WebWindowInput::InsecureContentDetected);
+                        },
+                        connect_create[sender] => move |this_webview, _navigation_action| {
+                            let new_webview = webkit6::glib::Object::builder::<webkit6::WebView>().property("related-view", this_webview).build();
+                            new_webview.set_vexpand(true);
+                            new_webview.connect_ready_to_show(clone!(@strong sender, @strong new_webview => move |_| {
+                                sender.input(WebWindowInput::CreateSmallWebWindow(new_webview.clone()));
+                            }));
+                            new_webview.into()
+
+                        },
+                    },
                 }
             },
 
@@ -151,6 +157,20 @@ impl Component for WebWindow {
         let widgets = view_output!();
         // Make the main app be aware of this new window so it doesn't quit when main window is closed
         // relm4::main_adw_application().add_window(&Self::builder().root);
+        let show_toolbars_event_controller = EventControllerMotion::new();
+        show_toolbars_event_controller.connect_enter(clone!(@strong sender => move |_, _, _| {
+            sender.input(WebWindowInput::ShowHeaderBar);
+        }));
+        widgets
+            .show_toolbars_box
+            .add_controller(show_toolbars_event_controller);
+        let hide_toolbars_event_controller = EventControllerMotion::new();
+        hide_toolbars_event_controller.connect_leave(clone!(@strong sender => move |_| {
+            sender.input(WebWindowInput::HideHeaderBar);
+        }));
+        widgets
+            .headerbar
+            .add_controller(hide_toolbars_event_controller);
 
         // Set settings for the WebView
         if let Some(web_view_settings) = webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
@@ -250,6 +270,7 @@ impl Component for WebWindow {
         root: &Self::Root,
     ) {
         match message {
+            WebWindowInput::Back => widgets.web_view.go_back(),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
@@ -445,6 +466,8 @@ impl Component for WebWindow {
             WebWindowInput::ReturnToMainAppWindow => sender
                 .output(WebWindowOutput::ReturnToMainAppWindow)
                 .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
+            WebWindowInput::ShowHeaderBar => widgets.toolbar_view.set_reveal_top_bars(true),
+            WebWindowInput::HideHeaderBar => widgets.toolbar_view.set_reveal_top_bars(false),
         }
     }
 }
