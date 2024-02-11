@@ -28,6 +28,8 @@ use crate::smallwebwindow::*;
 pub struct WebWindow {
     pub url: String,
     screenshot_flash_box: gtk::Box,
+    can_go_back: bool,
+    can_go_forward: bool,
 }
 
 #[derive(Debug)]
@@ -35,6 +37,7 @@ pub enum WebWindowInput {
     Back,
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
+    LoadChanged(bool, bool),
     InsecureContentDetected,
     Screenshot,
     BeginScreenshotFlash,
@@ -86,6 +89,16 @@ impl Component for WebWindow {
                                 gtk::Button {
                                     set_icon_name: "left",
                                     set_tooltip_text: Some("Back"),
+                                    #[watch]
+                                    set_sensitive: model.can_go_back,
+                                    connect_clicked => WebWindowInput::Back,
+                                },
+
+                                gtk::Button {
+                                    set_icon_name: "right",
+                                    set_tooltip_text: Some("Forward"),
+                                    #[watch]
+                                    set_sensitive: model.can_go_forward,
                                     connect_clicked => WebWindowInput::Back,
                                 }
                             },
@@ -104,6 +117,7 @@ impl Component for WebWindow {
                         set_vexpand: true,
                         load_uri: model.url.as_str(),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
+                            sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
                             sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
                         },
                         connect_title_notify[sender] => move |this_webview| {
@@ -153,6 +167,8 @@ impl Component for WebWindow {
         let model = WebWindow {
             url: init.0,
             screenshot_flash_box,
+            can_go_back: false,
+            can_go_forward: false,
         };
         let widgets = view_output!();
         // Make the main app be aware of this new window so it doesn't quit when main window is closed
@@ -175,6 +191,7 @@ impl Component for WebWindow {
         // Set settings for the WebView
         if let Some(web_view_settings) = webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
             web_view_settings.set_media_playback_requires_user_gesture(true);
+            web_view_settings.set_enable_back_forward_navigation_gestures(true);
             if PROFILE == "Devel" {
                 web_view_settings.set_enable_developer_extras(true);
             }
@@ -315,6 +332,10 @@ impl Component for WebWindow {
                 sender
                     .output(WebWindowOutput::TitleChanged(title))
                     .expect("Could not send output WebWindowOutput::TitleChanged");
+            }
+            WebWindowInput::LoadChanged(can_go_back, can_go_forward) => {
+                self.can_go_back = can_go_back;
+                self.can_go_forward = can_go_forward;
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
