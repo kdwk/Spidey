@@ -18,6 +18,14 @@ use url::Url;
 use webkit6::prelude::WebViewExt;
 
 use crate::config::{APP_ID, PROFILE, VERSION};
+use crate::document::FileSystemEntity;
+use crate::document::{
+    with, Create, Document,
+    Folder::{Project, User},
+    Mode,
+    Project::{Config, Data},
+    User::{Documents, Downloads, Pictures},
+};
 use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};
 
 pub(super) struct App {
@@ -158,33 +166,19 @@ impl Component for App {
                 // This is safe because the update function for this message variant will check if the file exists so we don't need to provide a guarantee here
                 sender.input(AppInput::SetUpUserContentFilterStore);
                 println!("XDG_DATA_DIR/adblock.json is older than 7 days. Downloading from the Internet...");
-                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    create_dir_all(dir.data_dir()).expect("Could not create XDG_DATA_DIR");
-                    let adblock_json_file_path = dir
-                        .data_dir()
-                        .join("adblock.json")
-                        .into_os_string()
-                        .into_string()
-                        .expect("Could not create adblock_json_file_path");
-                    File::create(&adblock_json_file_path).expect(format!("Could not create adblock.json at {}", adblock_json_file_path).as_str());
-                    let mut adblock_json_file = OpenOptions::new()
-                        .write(true)
-                        .open(&adblock_json_file_path)
-                        .expect("Could not open XDG_DATA_DIR/adblock.json");
-                    // Set up and perform reqwest operation to download the adblock.json file from the Internet
-                    let download_response_option = reqwest::blocking::get("https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json").ok();
-                    if let Some(mut download_response) = download_response_option {
-                        let _ = download_response.copy_to(&mut adblock_json_file);
-                    } else {
-                        eprintln!("Unable to receive download data from \"https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json\"");
-                    }
-                    // Update the last updated time of adblock.json
-                    gsettings
-                        .set_int64("adblock-json-last-updated", Utc::now().timestamp())
-                        .expect("Could not update GSettings value 'adblock-json-last-updated'");
-                    // Set up UserContentFilterStore again with new adblock.json
-                    sender.input(AppInput::SetUpUserContentFilterStore);
-                }
+
+                with(&[Document::at(Project(Data(&[]).with_id("com", "github.kdwk", "Spidey")), "adblock.json", Create::OnlyIfNotExists)],
+                    |mut d| {
+                        reqwest::blocking::get("https://easylist-downloads.adblockplus.org/easylist_min_content_blocker.json")?
+                            .copy_to(&mut d["adblock.json"].file(Mode::Replace)?)?;
+                        // Update the last updated time of adblock.json
+                        gsettings
+                            .set_int64("adblock-json-last-updated", Utc::now().timestamp())
+                            .expect("Could not update GSettings value 'adblock-json-last-updated'");
+                        // Set up UserContentFilterStore again with new adblock.json
+                        sender.input(AppInput::SetUpUserContentFilterStore);
+                        Ok(())
+                    });
             } else {
                 println!("XDG_DATA_DIR/adblock.json is less than 7 days old. No need to re-download from the Internet.");
                 // Set up UserContentFilterStore with either old adblock or no adblock
@@ -278,54 +272,36 @@ impl Component for App {
             }
 
             AppInput::SetUpUserContentFilterStore => {
-                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    let user_content_filter_store_path = dir
-                        .data_dir()
-                        .join("UserContentFilterStore")
-                        .into_os_string()
-                        .into_string()
-                        .expect("Could not build path user_content_filter_store_path");
+                let user_content_filter_store_folder = Project(
+                    Data(&["UserContentFilterStore"]).with_id("com", "github.kdwk", "Spidey"),
+                );
 
-                    // Create the UserContentFilterStore storage location if it doesn't exist
-                    create_dir_all(&user_content_filter_store_path)
-                        .expect("Could not create file at user_content_filter_store_path");
+                if !user_content_filter_store_folder.exists() {
+                    create_dir_all(user_content_filter_store_folder.path())
+                        .expect("Could not create Project(Data(&[\"UserContentFilterStore\"]).with_id(\"com\", \"github.kdwk\", \"Spidey\")");
+                }
 
-                    // Create a new UserContentFilterStore and save to the corresponding field in the struct of self
-                    self.user_content_filter_store_option =
-                        Some(webkit6::UserContentFilterStore::new(
-                            user_content_filter_store_path.as_str(),
-                        ));
+                self.user_content_filter_store_option = Some(webkit6::UserContentFilterStore::new(
+                    user_content_filter_store_folder.path().as_str(),
+                ));
 
-                    // Save XDG_DATA_DIR/adblock.json into the UserContentFilterStore as a UserContentFilter
-                    if let Some(user_content_filter_store) = &self.user_content_filter_store_option
-                    {
-                        let adblock_json_file_path = dir
-                            .data_dir()
-                            .join("adblock.json")
-                            .into_os_string()
-                            .into_string()
-                            .expect("Could not build path adblock_json_file_path");
-                        match Path::try_exists(Path::new(adblock_json_file_path.as_str())) {
-                            // Ok(true): path points to existing entity; Ok(false): path is broken
-                            Ok(path_exists) => {
-                                if path_exists {
-                                    user_content_filter_store.save_from_file(
-                                        "adblock",
-                                        &webkit6::gio::File::for_path(adblock_json_file_path),
-                                        webkit6::gio::Cancellable::NONE,
-                                        |_| {println!("Successfully saved adblock.json into UserContentFilterStore")},
-                                    );
-                                    self.webwindowcontrolbars.broadcast(WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(user_content_filter_store.clone()));
-                                } else {
-                                    eprintln!("XDG_DATA_DIR/adblock.json is a broken path");
-                                }
-                            }
-                            // Err(_): path cannot be verified to exist or otherwise
-                            Err(_) => {
-                                eprintln!("Cannot verify whether XDG_DATA_DIR/adblock.json exists")
-                            }
-                        }
-                    }
+                if let Some(user_content_filter_store) = &self.user_content_filter_store_option {
+                    with(
+                        &[Document::at(
+                            Project(Data(&[]).with_id("com", "github.kdwk", "Spidey")),
+                            "adblock.json",
+                            Create::No,
+                        )],
+                        |d| {
+                            user_content_filter_store.save_from_file(
+                                "adblock",
+                                &webkit6::gio::File::for_path(d["adblock.json"].path()),
+                                webkit6::gio::Cancellable::NONE,
+                                |_| println!("Successfully saved adblock.json into UserContentFilterStore")
+                            );
+                            Ok(())
+                        },
+                    );
                 }
             }
 
