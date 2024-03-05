@@ -265,10 +265,18 @@ impl Document {
     pub fn file(&mut self, permissions: Mode) -> Result<File, Box<dyn Error>> {
         self.open_file(permissions)
     }
-    pub fn write(&mut self, content: &str) -> Result<&mut Self, Box<dyn Error>> {
+    pub fn write(&mut self, content: &[u8]) -> Result<&mut Self, Box<dyn Error>> {
         let mut file = self.open_file(Mode::Append)?;
-        file.write_all(content.as_bytes())?;
+        file.write_all(content)?;
         Ok(self)
+    }
+    pub fn extension(&mut self) -> String {
+        self.pathbuf
+            .extension()
+            .unwrap_or(OsStr::new(""))
+            .to_str()
+            .unwrap_or("")
+            .to_string()
     }
 }
 
@@ -320,6 +328,25 @@ impl<'a> FileSystemEntity for Folder<'a> {
     }
 }
 
+impl FileSystemEntity for PathBuf {
+    fn name(&self) -> String {
+        self.file_name()
+            .unwrap_or(OsStr::new(""))
+            .to_str()
+            .unwrap_or("")
+            .to_string()
+    }
+    fn path(&self) -> String {
+        self.to_str().unwrap_or("").to_string()
+    }
+    fn exists(&self) -> bool {
+        match self.try_exists() {
+            Ok(value) if value => true,
+            _ => false,
+        }
+    }
+}
+
 pub struct Map(HashMap<String, Document>);
 
 impl Index<&str> for Map {
@@ -349,25 +376,8 @@ where
             }
         };
         let mut setup = || -> Result<_, Box<dyn Error>> {
-            let filename = document
-                .pathbuf
-                .clone()
-                .file_name()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default()
-                .to_string()
-                .split(".")
-                .collect::<Vec<&str>>()[0]
-                .to_string();
-            let extension = document
-                .pathbuf
-                .clone()
-                .extension()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default()
-                .to_string();
+            let name = document.name().split(".").collect::<Vec<&str>>()[0].to_string();
+            let extension = document.extension();
             match document.create_policy {
                 Create::OnlyIfNotExists => {
                     if let Some(parent_folder) = document.pathbuf.clone().parent() {
@@ -404,9 +414,11 @@ where
                     let mut suffix: u32 = 0;
                     while document.pathbuf.exists() {
                         suffix += 1;
-                        let new_filename = filename.clone()
+                        let new_filename = name.clone()
+                            + "("
                             + suffix.to_string().as_str()
-                            + "."
+                            + ")"
+                            + if extension.len() > 0 { "." } else { "" }
                             + extension.as_str();
                         document.pathbuf = document
                             .pathbuf
