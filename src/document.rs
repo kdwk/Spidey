@@ -375,6 +375,7 @@ where
                 return;
             }
         };
+        let original_name = document.name();
         let mut setup = || -> Result<_, Box<dyn Error>> {
             let name = document.name().split(".").collect::<Vec<&str>>()[0].to_string();
             let extension = document.extension();
@@ -438,7 +439,7 @@ where
             if !document.pathbuf.exists() {
                 Err(DocumentError::FileNotFound(document.path()))?
             }
-            document_map.insert(document.name(), document.clone());
+            document_map.insert(original_name, document.clone());
             Ok(())
         };
         match setup() {

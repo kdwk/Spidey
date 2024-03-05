@@ -22,6 +22,7 @@ use tokio;
 use webkit6::{gio::SimpleAction, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
+use crate::config::{APP_ID, PROFILE};
 use crate::document::{
     with, Create, Document, FileSystemEntity,
     Folder::{Project, User},
@@ -29,11 +30,7 @@ use crate::document::{
     Project::{Config, Data},
     User::{Documents, Downloads, Pictures},
 };
-use crate::{
-    config::{APP_ID, PROFILE},
-    document::with,
-};
-use crate::{document::Document, smallwebwindow::*};
+use crate::smallwebwindow::*;
 
 pub struct WebWindow {
     pub url: String,
@@ -376,138 +373,24 @@ impl Component for WebWindow {
                                     .output(WebWindowOutput::ReturnToMainAppWindow)
                                     .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
                             }));
-                            // Function to add an error message to explain what went wrong in case of a failed screenshot save
-                            let present_error_toast = |error_message: String| {
-                                toast_overlay
-                                    .add_toast(adw::Toast::new(&error_message));
-                            };
-                            with(&[Document::at(User(Pictures(&["Screenshot"])), "Screenshot.png", Create::AutoRenameIfExists)],
+                            with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
                                 |mut d| {
                                     d["Screenshot.png"].write(&texture.save_to_png_bytes())?;
                                     let toast = adw::Toast::builder()
                                         .title("Screenshot saved to Pictures → Screenshots")
                                         .button_label("Open")
                                         .build();
-                                    toast.connect_button_clicked(clone!(@strong d["Screenshot.png"] as png_document => move |_| {
-                                        png_document.launch_with_default_app();
-                                        // relm4::spawn_local(clone!(@strong screenshot_save_path_final => async move {
-                                        //     let screenshot_file = match OpenOptions::new().read(true).open(Path::new(&screenshot_save_path_final)){
-                                        //         Ok(file) => file,
-                                        //         Err(_) => {
-                                        //             eprintln!("Could not open {} for read", screenshot_save_path_final);
-                                        //             return;
-                                        //         }
-                                        //     };
-                                        //     let _ = OpenFileRequest::default()
-                                        //         .ask(true)
-                                        //         .send_file(&screenshot_file)
-                                        //         .await
-                                        //         .is_ok_and(|req| {
-                                        //             let _ = req.response();
-                                        //             true
-                                        //         });
-                                        // }));
-                                    }));
+                                    let png_document = d["Screenshot.png"].clone();
+                                    let toast_overlay_clone = toast_overlay.clone();
+                                    toast.connect_button_clicked(move |_| {
+                                        match png_document.launch_with_default_app() {
+                                            Ok(_) => {}
+                                            Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
+                                        }
+                                    });
                                     toast_overlay.add_toast(toast);
                                     Ok(())
                                 });
-                            // if let Some(dir) = directories::UserDirs::new() {
-                            //     // Create the ~/Pictures/Screenshots folder if it doesn't exist
-                            //     if let Err(_) = create_dir_all(Path::new(
-                            //         &dir.picture_dir()
-                            //             .expect("Could not find XDG_PICTURES_DIR")
-                            //             .join("Screenshots")
-                            //             .into_os_string()
-                            //             .into_string()
-                            //             .expect("Could not build path XDG_PICTURES_DIR/Screenshots"),
-                            //     )) {
-                            //         present_error_toast(
-                            //             "Could not create ~/Pictures/Screenshots".into(),
-                            //         );
-                            //         return;
-                            //     }
-                            //     // Function to get the screenshot save path and append the suffix to it
-                            //     let screenshot_save_path = |suffix: usize| -> String {
-                            //         let suffix_str = suffix.to_string();
-                            //         let path = dir
-                            //             .picture_dir()
-                            //             .expect("Could not find XDG_PICTURE_DIR")
-                            //             .join("Screenshots")
-                            //             .join(
-                            //                 "Screenshot".to_owned()
-                            //                     + if suffix != 0 { suffix_str.as_str() } else { "" }
-                            //                     + ".png",
-                            //             )
-                            //             .into_os_string()
-                            //             .into_string()
-                            //             .expect("Could not build path screenshot_save_path");
-                            //         path
-                            //     };
-                            //     // Increment the suffix until the file doesn't already exist in the folder
-                            //     let mut suffix: usize = 0;
-                            //     let screenshot_save_path_final = {
-                            //         while Path::new(screenshot_save_path(suffix).as_str()).exists() {
-                            //             suffix += 1;
-                            //         }
-                            //         screenshot_save_path(suffix)
-                            //     };
-                            //     // Create the actual file to save the screenshot to
-                            //     if let Err(_) = File::create(Path::new(&screenshot_save_path_final))
-                            //     {
-                            //         present_error_toast(format!(
-                            //             "Could not create {}",
-                            //             &screenshot_save_path_final
-                            //         ));
-                            //         return;
-                            //     };
-                            //     let mut screenshot_file = match OpenOptions::new()
-                            //         .write(true)
-                            //         .open(Path::new(&screenshot_save_path_final))
-                            //     {
-                            //         Ok(file) => file,
-                            //         Err(_) => {
-                            //             present_error_toast(format!(
-                            //                 "Could not open {}",
-                            //                 &screenshot_save_path_final
-                            //             ));
-                            //             return;
-                            //         }
-                            //     };
-                            //     // Actually write the PNG bytes to the file
-                            //     if let Err(_) =
-                            //         screenshot_file.write_all(&texture.save_to_png_bytes())
-                            //     {
-                            //         present_error_toast(format!(
-                            //             "Failed to write to {}",
-                            //             &screenshot_save_path_final
-                            //         ));
-                            //         return;
-                            //     };
-                            //     // Add a toast to say that the screenshot is saved and a button to open the screenshot
-                            //     let toast = adw::Toast::builder()
-                            //         .title("Screenshot saved to Pictures → Screenshots")
-                            //         .button_label("Open")
-                            //         .build();
-                            //     toast.connect_button_clicked(move |_| {
-                            //         relm4::spawn_local(clone!(@strong screenshot_save_path_final => async move {
-                            //             let screenshot_file = match OpenOptions::new().read(true).open(Path::new(&screenshot_save_path_final)){
-                            //                 Ok(file) => file,
-                            //                 Err(_) => {
-                            //                     eprintln!("Could not open {} for read", screenshot_save_path_final);
-                            //                     return;
-                            //                 }
-                            //             };
-                            //             let _ = OpenFileRequest::default()
-                            //                 .ask(true)
-                            //                 .send_file(&screenshot_file)
-                            //                 .await
-                            //                 .is_ok_and(|req| {
-                            //                     let _ = req.response();
-                            //                     true
-                            //                 });
-                            //         }));
-                            //     });
-                            //     toast_overlay.add_toast(toast);
                         }
                         Err(error) => {
                             eprintln!("Could not save screenshot: {}", error.to_string());
