@@ -265,18 +265,20 @@ impl Component for WebWindow {
 
             // Handle persistent cookies
             if let Some(cookie_manager) = session.cookie_manager() {
-                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    create_dir_all(dir.data_dir()).expect("Could not create XDG_DATA_DIR");
-                    let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
-                    cookie_manager.set_persistent_storage(
-                        cookiesdb_file_path
-                            .into_os_string()
-                            .into_string()
-                            .expect("Could not build cookiesdb_file_path")
-                            .as_str(),
-                        webkit6::CookiePersistentStorage::Sqlite,
-                    );
-                }
+                with(
+                    &[Document::at(
+                        Project(Data(&[]).with_id("com", "github.kdwk", "Spidey")),
+                        "cookies.sqlite",
+                        Create::No,
+                    )],
+                    |d| {
+                        cookie_manager.set_persistent_storage(
+                            d["cookies.sqlite"].path().as_str(),
+                            webkit6::CookiePersistentStorage::Sqlite,
+                        );
+                        Ok(())
+                    },
+                );
             }
         }
 
@@ -393,7 +395,7 @@ impl Component for WebWindow {
                                 });
                         }
                         Err(error) => {
-                            eprintln!("Could not save screenshot: {}", error.to_string());
+                            eprintln!("Could not save screenshot: {}", error);
                             toast_overlay
                                 .add_toast(adw::Toast::new("Failed to take screenshot"))
                         }
