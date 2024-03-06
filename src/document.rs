@@ -232,14 +232,88 @@ impl Error for DocumentError {
 
 #[derive(Debug, Clone)]
 pub struct Document {
+    alias: String,
     pathbuf: PathBuf,
     create_policy: Create,
 }
 
 impl Document {
     pub fn at(location: Folder, filename: &str, create: Create) -> Result<Self, Box<dyn Error>> {
-        let pathbuf = location.into_pathbuf_result(filename)?;
+        let mut pathbuf = location.into_pathbuf_result(filename)?;
+        let original_name = pathbuf.name();
+        // let mut setup = || -> Result<_, Box<dyn Error>> {
+
+        //     Ok(())
+        // };
+        // setup()?;
+        let name = pathbuf.name();
+        let extension = pathbuf
+            .extension()
+            .unwrap_or(OsStr::new(""))
+            .to_str()
+            .unwrap_or("")
+            .to_string();
+        match create {
+            Create::OnlyIfNotExists => {
+                if let Some(parent_folder) = pathbuf.clone().parent() {
+                    if let Err(_) = create_dir_all(parent_folder) {
+                        Err(DocumentError::CouldNotCreateParentFolder(
+                            parent_folder
+                                .to_path_buf()
+                                .to_str()
+                                .unwrap_or("")
+                                .to_string(),
+                        ))?
+                    }
+                }
+                if !pathbuf.exists() {
+                    OpenOptions::new()
+                        .read(false)
+                        .write(true)
+                        .create_new(true)
+                        .open(pathbuf.clone())?;
+                }
+            }
+            Create::AutoRenameIfExists => {
+                if let Some(parent_folder) = pathbuf.clone().parent() {
+                    if let Err(_) = create_dir_all(parent_folder) {
+                        Err(DocumentError::CouldNotCreateParentFolder(
+                            parent_folder
+                                .to_path_buf()
+                                .to_str()
+                                .unwrap_or("")
+                                .to_string(),
+                        ))?
+                    }
+                }
+                let mut suffix: u32 = 0;
+                while pathbuf.exists() {
+                    suffix += 1;
+                    let new_filename = name.clone()
+                        + "("
+                        + suffix.to_string().as_str()
+                        + ")"
+                        + if extension.len() > 0 { "." } else { "" }
+                        + extension.as_str();
+                    pathbuf = pathbuf
+                        .clone()
+                        .parent()
+                        .unwrap_or(&Path::new(""))
+                        .join(new_filename);
+                }
+                OpenOptions::new()
+                    .read(false)
+                    .write(true)
+                    .create_new(true)
+                    .open(pathbuf.clone())?;
+            }
+            _ => {}
+        }
+        if !pathbuf.exists() {
+            Err(DocumentError::FileNotFound(pathbuf.path()))?
+        }
         Ok(Self {
+            alias: original_name,
             pathbuf,
             create_policy: create,
         })
@@ -368,87 +442,14 @@ where
 {
     let mut document_map = HashMap::new();
     for document_result in documents {
-        let mut document = match document_result {
+        let document = match document_result {
             Ok(document) => (*document).clone(),
             Err(error) => {
                 eprintln!("{}", error);
                 return;
             }
         };
-        let original_name = document.name();
-        let mut setup = || -> Result<_, Box<dyn Error>> {
-            let name = document.name().split(".").collect::<Vec<&str>>()[0].to_string();
-            let extension = document.extension();
-            match document.create_policy {
-                Create::OnlyIfNotExists => {
-                    if let Some(parent_folder) = document.pathbuf.clone().parent() {
-                        if let Err(_) = create_dir_all(parent_folder) {
-                            Err(DocumentError::CouldNotCreateParentFolder(
-                                parent_folder
-                                    .to_path_buf()
-                                    .to_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                            ))?
-                        }
-                    }
-                    if !document.pathbuf.exists() {
-                        OpenOptions::new()
-                            .read(false)
-                            .write(true)
-                            .create_new(true)
-                            .open(document.pathbuf.clone())?;
-                    }
-                }
-                Create::AutoRenameIfExists => {
-                    if let Some(parent_folder) = document.pathbuf.clone().parent() {
-                        if let Err(_) = create_dir_all(parent_folder) {
-                            Err(DocumentError::CouldNotCreateParentFolder(
-                                parent_folder
-                                    .to_path_buf()
-                                    .to_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                            ))?
-                        }
-                    }
-                    let mut suffix: u32 = 0;
-                    while document.pathbuf.exists() {
-                        suffix += 1;
-                        let new_filename = name.clone()
-                            + "("
-                            + suffix.to_string().as_str()
-                            + ")"
-                            + if extension.len() > 0 { "." } else { "" }
-                            + extension.as_str();
-                        document.pathbuf = document
-                            .pathbuf
-                            .clone()
-                            .parent()
-                            .unwrap_or(&Path::new(""))
-                            .join(new_filename);
-                    }
-                    OpenOptions::new()
-                        .read(false)
-                        .write(true)
-                        .create_new(true)
-                        .open(document.pathbuf.clone())?;
-                }
-                _ => {}
-            }
-            if !document.pathbuf.exists() {
-                Err(DocumentError::FileNotFound(document.path()))?
-            }
-            document_map.insert(original_name, document.clone());
-            Ok(())
-        };
-        match setup() {
-            Ok(_) => {}
-            Err(error) => {
-                eprintln!("{}", error);
-                return;
-            }
-        }
+        document_map.insert(document.clone().alias, document);
     }
     match closure(Map(document_map)) {
         Ok(_) => {}
