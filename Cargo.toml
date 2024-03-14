@@ -17,7 +17,7 @@ webkit6-sys = "0.2.0"
 url = "2.5.0"
 relm4 = { version = "0.7.0-beta.2", features = ["libadwaita", "gnome_45", "macros"] }
 relm4-components = "0.7.0-beta.2"
-relm4-macros = "0.7.0-beta.2"
+relm4-macros = "0.8.1"
 relm4-icons = {version="0.7.0-alpha.2", features=["plus", "left", "right", "cross", "refresh","multitasking-windows", "about", "screenshooter", "move-to-window", "menu"]}
 directories = "5.0.1"
 chrono = {version="0.4.34", features = ["clock"]}
