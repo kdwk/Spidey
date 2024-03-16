@@ -144,7 +144,7 @@ impl Component for App {
 
     fn init(
         init: Self::Init,
-        root: &Self::Root,
+        root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         // Set up adblock filters in another thread

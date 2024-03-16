@@ -1,0 +1,3 @@
+app_id = "com.github.kdwk.Spidey"
+
+icons = ["plus", "left", "right", "cross", "refresh","multitasking-windows", "about", "screenshooter", "move-to-window", "menu"]

@@ -15,11 +15,16 @@ use std::{
     time::Duration,
 };
 
-use relm4::actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup};
-use relm4::adw::prelude::*;
-use relm4::gtk::glib::clone;
-use relm4::gtk::{prelude::WidgetExt, prelude::*, EventControllerMotion};
-use relm4::prelude::*;
+use relm4::{
+    actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup},
+    adw::prelude::*,
+    gtk::{
+        glib::clone,
+        prelude::{WidgetExt, *},
+        EventControllerMotion,
+    },
+    prelude::*,
+};
 use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
@@ -44,6 +49,7 @@ pub struct WebWindow {
 #[derive(Debug)]
 pub enum WebWindowInput {
     Back,
+    Forward,
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     LoadChanged(bool, bool),
@@ -108,7 +114,7 @@ impl Component for WebWindow {
                                     set_tooltip_text: Some("Forward"),
                                     #[watch]
                                     set_sensitive: model.can_go_forward,
-                                    connect_clicked => WebWindowInput::Back,
+                                    connect_clicked => WebWindowInput::Forward,
                                 }
                             },
                         },
@@ -127,7 +133,7 @@ impl Component for WebWindow {
                         load_uri: model.url.as_str(),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
                             sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
-                            sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
+                            // sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
                         },
                         connect_title_notify[sender] => move |this_webview| {
                             let title = this_webview.title().map(|title| ToString::to_string(&title));
@@ -163,7 +169,7 @@ impl Component for WebWindow {
 
     fn init(
         init: Self::Init,
-        root: &Self::Root,
+        root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         // Standard component initialization
@@ -295,6 +301,7 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::Back => widgets.web_view.go_back(),
+            WebWindowInput::Forward => widgets.web_view.go_forward(),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
@@ -343,6 +350,8 @@ impl Component for WebWindow {
             WebWindowInput::LoadChanged(can_go_back, can_go_forward) => {
                 self.can_go_back = can_go_back;
                 self.can_go_forward = can_go_forward;
+                dbg!(self.can_go_back);
+                dbg!(self.can_go_forward);
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay

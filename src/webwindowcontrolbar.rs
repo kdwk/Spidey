@@ -213,7 +213,7 @@ impl FactoryComponent for WebWindowControlBar {
     fn init_widgets(
         &mut self,
         index: &Self::Index,
-        root: &Self::Root,
+        root: Self::Root,
         returned_widget: &<Self::ParentWidget as relm4::factory::FactoryView>::ReturnedWidget,
         sender: FactorySender<Self>,
     ) -> Self::Widgets {
@@ -240,7 +240,7 @@ impl FactoryComponent for WebWindowControlBar {
         webwindow_control_bar_action_group.add_action(screenshot_action);
         webwindow_control_bar_action_group.add_action(focus_action);
         webwindow_control_bar_action_group.add_action(copy_link_action);
-        webwindow_control_bar_action_group.register_for_widget(root);
+        webwindow_control_bar_action_group.register_for_widget(root.clone());
 
         let widgets = view_output!();
 
