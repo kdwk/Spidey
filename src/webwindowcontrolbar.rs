@@ -1,10 +1,11 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use ashpd::desktop::clipboard::Clipboard;
-use ashpd::desktop::{Request, Session};
-use relm4::actions::{RelmAction, RelmActionGroup};
-use relm4::gtk::{glib::clone, prelude::*};
-use relm4::prelude::*;
+use ashpd::desktop::{clipboard::Clipboard, Request, Session};
+use relm4::{
+    actions::{RelmAction, RelmActionGroup},
+    gtk::{glib::clone, prelude::*},
+    prelude::*,
+};
 use webkit6::gdk::ContentProvider;
 use webkit6::prelude::*;
 
@@ -213,7 +214,7 @@ impl FactoryComponent for WebWindowControlBar {
     fn init_widgets(
         &mut self,
         index: &Self::Index,
-        root: &Self::Root,
+        root: Self::Root,
         returned_widget: &<Self::ParentWidget as relm4::factory::FactoryView>::ReturnedWidget,
         sender: FactorySender<Self>,
     ) -> Self::Widgets {
@@ -240,7 +241,7 @@ impl FactoryComponent for WebWindowControlBar {
         webwindow_control_bar_action_group.add_action(screenshot_action);
         webwindow_control_bar_action_group.add_action(focus_action);
         webwindow_control_bar_action_group.add_action(copy_link_action);
-        webwindow_control_bar_action_group.register_for_widget(root);
+        webwindow_control_bar_action_group.register_for_widget(root.clone());
 
         let widgets = view_output!();
 

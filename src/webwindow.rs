@@ -1,28 +1,34 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use ashpd::desktop::open_uri::OpenFileRequest;
-use directories;
 use std::{
-    fs::{create_dir_all, File, OpenOptions},
-    io::Write,
-    path::Path,
+    error::Error,
     process::Command,
-    rc::Rc,
     sync::{atomic::AtomicBool, Arc},
-    thread,
     time::Duration,
 };
 
-use relm4::actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup};
-use relm4::adw::prelude::*;
-use relm4::gtk::glib::clone;
-use relm4::gtk::{prelude::WidgetExt, prelude::*, EventControllerMotion};
-use relm4::prelude::*;
-use tokio;
-use webkit6::{gio::SimpleAction, prelude::*};
+use relm4::{
+    actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup},
+    adw::prelude::*,
+    gtk::{
+        glib::clone,
+        prelude::{WidgetExt, *},
+        EventControllerMotion,
+    },
+    prelude::*,
+};
+use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
+use crate::document::{
+    with, Catch, Create, Document, FileSystemEntity,
+    Folder::{Project, User},
+    LinesBufReaderFileExt, Map, Mode,
+    Project::{Config, Data},
+    ResultDocumentBoxErrorExt,
+    User::{Documents, Downloads, Pictures},
+};
 use crate::smallwebwindow::*;
 
 pub struct WebWindow {
@@ -35,6 +41,7 @@ pub struct WebWindow {
 #[derive(Debug)]
 pub enum WebWindowInput {
     Back,
+    Forward,
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     LoadChanged(bool, bool),
@@ -99,7 +106,7 @@ impl Component for WebWindow {
                                     set_tooltip_text: Some("Forward"),
                                     #[watch]
                                     set_sensitive: model.can_go_forward,
-                                    connect_clicked => WebWindowInput::Back,
+                                    connect_clicked => WebWindowInput::Forward,
                                 }
                             },
                         },
@@ -118,7 +125,7 @@ impl Component for WebWindow {
                         load_uri: model.url.as_str(),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
                             sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
-                            sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
+                            // sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
                         },
                         connect_title_notify[sender] => move |this_webview| {
                             let title = this_webview.title().map(|title| ToString::to_string(&title));
@@ -154,7 +161,7 @@ impl Component for WebWindow {
 
     fn init(
         init: Self::Init,
-        root: &Self::Root,
+        root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         // Standard component initialization
@@ -217,39 +224,35 @@ impl Component for WebWindow {
         if let Some(session) = widgets.web_view.network_session() {
             // Handle downloads
             session.connect_download_started(clone!(@strong toast_overlay_widget_clone as toast_overlay => move |this_session, download_object| {
-                let download_did_fail = Arc::new(AtomicBool::new(false));
-                download_object.connect_failed(clone!(@strong toast_overlay ,@strong download_did_fail => move |this_download_object, error| {
-                    (*download_did_fail).store(true, std::sync::atomic::Ordering::Relaxed);
+                let did_download_fail = Arc::new(AtomicBool::new(false));
+                download_object.connect_decide_destination(|this_download_object, suggested_filename| {
+                    this_download_object.set_destination(Document::at(User(Downloads(&[])), suggested_filename, Create::No).suggest_rename().as_str());
+                    true
+                });
+                download_object.connect_created_destination(clone!(@strong toast_overlay, @strong did_download_fail => move |this_download_object, destination| {
+                    let destination_string = destination.to_string();
+                    this_download_object.connect_finished(clone!(@strong toast_overlay, @strong did_download_fail, @strong destination_string => move |this_download_object| {
+                        if (*did_download_fail).load(std::sync::atomic::Ordering::Relaxed) {return;}
+                        let toast = adw::Toast::new("File saved to Downloads folder");
+                        toast.set_button_label(Some("Open"));
+                        let toast_overlay_clone = toast_overlay.clone();
+                        let destination_string_clone = destination_string.clone();
+                        toast.connect_button_clicked(move |_| {
+                            match Document::from_path(destination_string_clone.clone(), "download_file", Create::No) {
+                                Ok(document) => if let Err(error) = document.launch_with_default_app() {
+                                    toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()));
+                                }
+                                Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
+                            };
+                        });
+                        toast_overlay.add_toast(toast);
+                    }));
+                }));
+                download_object.connect_failed(clone!(@strong toast_overlay ,@strong did_download_fail => move |this_download_object, error| {
+                    (*did_download_fail).store(true, std::sync::atomic::Ordering::Relaxed);
                     eprintln!("{}", error.to_string());
                     toast_overlay
                         .add_toast(adw::Toast::new("Download failed"));
-                }));
-                download_object.connect_finished(clone!(@strong toast_overlay, @strong download_did_fail => move |this_download_object| {
-                    if (*download_did_fail).load(std::sync::atomic::Ordering::Relaxed) {return;}
-                    let toast = adw::Toast::new("File saved to Downloads folder");
-                    toast.set_button_label(Some("Open"));
-                    let downloaded_file_path = match this_download_object.destination() {
-                        Some(destination_gstring) => destination_gstring.to_string(),
-                        None => String::from(""),
-                    };
-                    toast.connect_button_clicked(move |_| {
-                        let file_result = OpenOptions::new()
-                            .read(true)
-                            .open(Path::new(&downloaded_file_path));
-                        relm4::spawn_local(async move {
-                            if let Ok(file) = file_result {
-                                let _ = OpenFileRequest::default()
-                                    .ask(true)
-                                    .send_file(&file)
-                                    .await
-                                    .is_ok_and(|req| {
-                                        let _ = req.response();
-                                        true
-                                    });
-                            }
-                        });
-                    });
-                    toast_overlay.add_toast(toast);
                 }));
             }));
 
@@ -258,18 +261,20 @@ impl Component for WebWindow {
 
             // Handle persistent cookies
             if let Some(cookie_manager) = session.cookie_manager() {
-                if let Some(dir) = directories::ProjectDirs::from("com", "github.kdwk", "Spidey") {
-                    create_dir_all(dir.data_dir()).expect("Could not create XDG_DATA_DIR");
-                    let cookiesdb_file_path = dir.data_dir().join("cookies.sqlite");
-                    cookie_manager.set_persistent_storage(
-                        cookiesdb_file_path
-                            .into_os_string()
-                            .into_string()
-                            .expect("Could not build cookiesdb_file_path")
-                            .as_str(),
-                        webkit6::CookiePersistentStorage::Sqlite,
-                    );
-                }
+                with(
+                    &[Document::at(
+                        Project(Data(&[]).with_id("com", "github.kdwk", "Spidey")),
+                        "cookies.sqlite",
+                        Create::No,
+                    )],
+                    |d| {
+                        cookie_manager.set_persistent_storage(
+                            d["cookies.sqlite"].path().as_str(),
+                            webkit6::CookiePersistentStorage::Sqlite,
+                        );
+                        Ok(())
+                    },
+                );
             }
         }
 
@@ -288,6 +293,7 @@ impl Component for WebWindow {
     ) {
         match message {
             WebWindowInput::Back => widgets.web_view.go_back(),
+            WebWindowInput::Forward => widgets.web_view.go_forward(),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
@@ -351,127 +357,36 @@ impl Component for WebWindow {
                             web_window.present();
                             // Using async but not threads because WebWindowInput cannot be sent across threads due to one of the variants carrying a WebView
                             let animation_timing_handle = relm4::spawn_local(clone!(@strong sender => async move {
-                                // Wait for 300ms for the WebWindow to be in focus
-                                tokio::time::sleep(Duration::from_millis(300)).await;
-                                // Add the screenshot flash box to the main_overlay of the WebWindow
-                                sender.input(WebWindowInput::BeginScreenshotFlash);
-                                // Wait for the animation to finish
-                                tokio::time::sleep(Duration::from_millis(830)).await;
-                                // Remoe the screenshot flash box
-                                sender.input(WebWindowInput::ScreenshotFlashFinished);
-                                // Wait for another 350ms to prevent whiplash
-                                tokio::time::sleep(Duration::from_millis(350)).await;
-                                // Return focus back to main app window
-                                sender
+                                tokio::time::sleep(Duration::from_millis(300)).await; // Wait for 300ms for the WebWindow to be in focus
+                                sender.input(WebWindowInput::BeginScreenshotFlash); // Add the screenshot flash box to the main_overlay of the WebWindow
+                                tokio::time::sleep(Duration::from_millis(830)).await; // Wait for the animation to finish
+                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remoe the screenshot flash box
+                                tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
+                                sender // Return focus back to main app window
                                     .output(WebWindowOutput::ReturnToMainAppWindow)
                                     .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
                             }));
-                            // Function to add an error message to explain what went wrong in case of a failed screenshot save
-                            let present_error_toast = |error_message: String| {
-                                toast_overlay
-                                    .add_toast(adw::Toast::new(&error_message));
-                            };
-                            if let Some(dir) = directories::UserDirs::new() {
-                                // Create the ~/Pictures/Screenshots folder if it doesn't exist
-                                if let Err(_) = create_dir_all(Path::new(
-                                    &dir.picture_dir()
-                                        .expect("Could not find XDG_PICTURES_DIR")
-                                        .join("Screenshots")
-                                        .into_os_string()
-                                        .into_string()
-                                        .expect("Could not build path XDG_PICTURES_DIR/Screenshots"),
-                                )) {
-                                    present_error_toast(
-                                        "Could not create ~/Pictures/Screenshots".into(),
-                                    );
-                                    return;
-                                }
-                                // Function to get the screenshot save path and append the suffix to it
-                                let screenshot_save_path = |suffix: usize| -> String {
-                                    let suffix_str = suffix.to_string();
-                                    let path = dir
-                                        .picture_dir()
-                                        .expect("Could not find XDG_PICTURE_DIR")
-                                        .join("Screenshots")
-                                        .join(
-                                            "Screenshot".to_owned()
-                                                + if suffix != 0 { suffix_str.as_str() } else { "" }
-                                                + ".png",
-                                        )
-                                        .into_os_string()
-                                        .into_string()
-                                        .expect("Could not build path screenshot_save_path");
-                                    path
-                                };
-                                // Increment the suffix until the file doesn't already exist in the folder
-                                let mut suffix: usize = 0;
-                                let screenshot_save_path_final = {
-                                    while Path::new(screenshot_save_path(suffix).as_str()).exists() {
-                                        suffix += 1;
-                                    }
-                                    screenshot_save_path(suffix)
-                                };
-                                // Create the actual file to save the screenshot to
-                                if let Err(_) = File::create(Path::new(&screenshot_save_path_final))
-                                {
-                                    present_error_toast(format!(
-                                        "Could not create {}",
-                                        &screenshot_save_path_final
-                                    ));
-                                    return;
-                                };
-                                let mut screenshot_file = match OpenOptions::new()
-                                    .write(true)
-                                    .open(Path::new(&screenshot_save_path_final))
-                                {
-                                    Ok(file) => file,
-                                    Err(_) => {
-                                        present_error_toast(format!(
-                                            "Could not open {}",
-                                            &screenshot_save_path_final
-                                        ));
-                                        return;
-                                    }
-                                };
-                                // Actually write the PNG bytes to the file
-                                if let Err(_) =
-                                    screenshot_file.write_all(&texture.save_to_png_bytes())
-                                {
-                                    present_error_toast(format!(
-                                        "Failed to write to {}",
-                                        &screenshot_save_path_final
-                                    ));
-                                    return;
-                                };
-                                // Add a toast to say that the screenshot is saved and a button to open the screenshot
-                                let toast = adw::Toast::builder()
-                                    .title("Screenshot saved to Pictures → Screenshots")
-                                    .button_label("Open")
-                                    .build();
-                                toast.connect_button_clicked(move |_| {
-                                    relm4::spawn_local(clone!(@strong screenshot_save_path_final => async move {
-                                        let screenshot_file = match OpenOptions::new().read(true).open(Path::new(&screenshot_save_path_final)){
-                                            Ok(file) => file,
-                                            Err(_) => {
-                                                eprintln!("Could not open {} for read", screenshot_save_path_final);
-                                                return;
-                                            }
-                                        };
-                                        let _ = OpenFileRequest::default()
-                                            .ask(true)
-                                            .send_file(&screenshot_file)
-                                            .await
-                                            .is_ok_and(|req| {
-                                                let _ = req.response();
-                                                true
-                                            });
-                                    }));
+                            with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
+                                |mut d| {
+                                    d["Screenshot.png"].replace_with(&texture.save_to_png_bytes())?;
+                                    let toast = adw::Toast::builder()
+                                        .title("Screenshot saved to Pictures → Screenshots")
+                                        .button_label("Open")
+                                        .build();
+                                    let png_document = d["Screenshot.png"].clone();
+                                    let toast_overlay_clone = toast_overlay.clone();
+                                    toast.connect_button_clicked(move |_| {
+                                        match png_document.launch_with_default_app() {
+                                            Ok(_) => {}
+                                            Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
+                                        }
+                                    });
+                                    toast_overlay.add_toast(toast);
+                                    Ok(())
                                 });
-                                toast_overlay.add_toast(toast);
-                            }
                         }
                         Err(error) => {
-                            eprintln!("Could not save screenshot: {}", error.to_string());
+                            eprintln!("Could not save screenshot: {}", error);
                             toast_overlay
                                 .add_toast(adw::Toast::new("Failed to take screenshot"))
                         }

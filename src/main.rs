@@ -1,6 +1,7 @@
 #[rustfmt::skip]
 mod config;
 mod app;
+mod document;
 mod setup;
 mod smallwebwindow;
 mod webwindow;
@@ -8,7 +9,7 @@ mod webwindowcontrolbar;
 
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
-    gtk::prelude::*,
+    gtk::{gio, glib, prelude::*},
     main_application, RelmApp,
 };
 
@@ -25,8 +26,6 @@ fn main() {
         .with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL)
         .with_max_level(tracing::Level::INFO)
         .init();
-
-    setup();
 
     let app = main_application();
     app.set_resource_base_path(Some("/com/github/kdwk/Spidey/"));
@@ -45,8 +44,7 @@ fn main() {
     app.set_accelerators_for_action::<QuitAction>(&["<primary>q"]);
 
     let app = RelmApp::from_app(app);
-
+    setup(&app);
     relm4_icons::initialize_icons();
-
     app.run::<App>(());
 }
