@@ -1,10 +1,11 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use ashpd::desktop::clipboard::Clipboard;
-use ashpd::desktop::{Request, Session};
-use relm4::actions::{RelmAction, RelmActionGroup};
-use relm4::gtk::{glib::clone, prelude::*};
-use relm4::prelude::*;
+use ashpd::desktop::{clipboard::Clipboard, Request, Session};
+use relm4::{
+    actions::{RelmAction, RelmActionGroup},
+    gtk::{glib::clone, prelude::*},
+    prelude::*,
+};
 use webkit6::gdk::ContentProvider;
 use webkit6::prelude::*;
 

@@ -1,17 +1,9 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use ashpd::desktop::open_uri::OpenFileRequest;
-use directories;
 use std::{
     error::Error,
-    fs::{create_dir_all, File, OpenOptions},
-    io::Write,
-    ops::Deref,
-    path::Path,
     process::Command,
-    rc::Rc,
-    sync::{atomic::AtomicBool, Arc, Mutex},
-    thread,
+    sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
 
@@ -350,8 +342,6 @@ impl Component for WebWindow {
             WebWindowInput::LoadChanged(can_go_back, can_go_forward) => {
                 self.can_go_back = can_go_back;
                 self.can_go_forward = can_go_forward;
-                dbg!(self.can_go_back);
-                dbg!(self.can_go_forward);
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay

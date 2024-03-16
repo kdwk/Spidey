@@ -1,19 +1,15 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use chrono::offset::Utc;
-use directories;
-use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
-use relm4::adw::prelude::*;
-use relm4::gtk::{glib::clone, prelude::*};
-use relm4::{prelude::*, ComponentController};
-use reqwest;
-use std::error::Error;
-use std::io::Write;
-use std::{
-    fs::{create_dir_all, File, OpenOptions},
-    path::Path,
-    thread,
+use relm4::{
+    actions::{AccelsPlus, RelmAction, RelmActionGroup},
+    adw::prelude::*,
+    gtk::{glib::clone, prelude::*},
+    prelude::*,
+    ComponentController,
 };
+use reqwest;
+use std::{error::Error, thread};
 use url::Url;
 use webkit6::prelude::WebViewExt;
 
@@ -272,18 +268,25 @@ impl Component for App {
             }
 
             AppInput::SetUpUserContentFilterStore => {
-                let user_content_filter_store_folder = Project(
-                    Data(&["UserContentFilterStore"]).with_id("com", "github.kdwk", "Spidey"),
+                with(
+                    &[Document::at(
+                        Project(Data(&["UserContentFilterStore"]).with_id(
+                            "com",
+                            "github.kdwk",
+                            "Spidey",
+                        )),
+                        "",
+                        Create::OnlyIfNotExists,
+                    )
+                    .alias("UserContentFilterStore")],
+                    |d| {
+                        self.user_content_filter_store_option =
+                            Some(webkit6::UserContentFilterStore::new(
+                                d["UserContentFilterStore"].path().as_str(),
+                            ));
+                        Ok(())
+                    },
                 );
-
-                if !user_content_filter_store_folder.exists() {
-                    create_dir_all(user_content_filter_store_folder.path())
-                        .expect("Could not create Project(Data(&[\"UserContentFilterStore\"]).with_id(\"com\", \"github.kdwk\", \"Spidey\")");
-                }
-
-                self.user_content_filter_store_option = Some(webkit6::UserContentFilterStore::new(
-                    user_content_filter_store_folder.path().as_str(),
-                ));
 
                 if let Some(user_content_filter_store) = &self.user_content_filter_store_option {
                     with(
