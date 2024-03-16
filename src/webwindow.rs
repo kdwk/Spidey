@@ -31,6 +31,7 @@ use crate::document::{
 };
 use crate::smallwebwindow::*;
 
+#[tracker::track]
 pub struct WebWindow {
     pub url: String,
     screenshot_flash_box: gtk::Box,
@@ -93,18 +94,20 @@ impl Component for WebWindow {
                                 set_orientation: gtk::Orientation::Horizontal,
                                 add_css_class: "webwindow-headerbar",
 
+                                #[name(back_btn)]
                                 gtk::Button {
                                     set_icon_name: "left",
                                     set_tooltip_text: Some("Back"),
-                                    #[watch]
+                                    #[track = "model.changed(WebWindow::can_go_back())"]
                                     set_sensitive: model.can_go_back,
                                     connect_clicked => WebWindowInput::Back,
                                 },
 
+                                #[name(forward_btn)]
                                 gtk::Button {
                                     set_icon_name: "right",
                                     set_tooltip_text: Some("Forward"),
-                                    #[watch]
+                                    #[track = "model.changed(WebWindow::can_go_forward())"]
                                     set_sensitive: model.can_go_forward,
                                     connect_clicked => WebWindowInput::Forward,
                                 }
@@ -176,6 +179,7 @@ impl Component for WebWindow {
             screenshot_flash_box,
             can_go_back: false,
             can_go_forward: false,
+            tracker: 0,
         };
         let widgets = view_output!();
         // Make the main app be aware of this new window so it doesn't quit when main window is closed
@@ -291,6 +295,8 @@ impl Component for WebWindow {
         sender: ComponentSender<Self>,
         root: &Self::Root,
     ) {
+        self.reset();
+        let sender_clone = sender.clone();
         match message {
             WebWindowInput::Back => widgets.web_view.go_back(),
             WebWindowInput::Forward => widgets.web_view.go_forward(),
@@ -340,8 +346,8 @@ impl Component for WebWindow {
                     .expect("Could not send output WebWindowOutput::TitleChanged");
             }
             WebWindowInput::LoadChanged(can_go_back, can_go_forward) => {
-                self.can_go_back = can_go_back;
-                self.can_go_forward = can_go_forward;
+                self.set_can_go_back(can_go_back);
+                self.set_can_go_forward(can_go_forward);
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
@@ -405,5 +411,6 @@ impl Component for WebWindow {
             WebWindowInput::ShowHeaderBar => widgets.toolbar_view.set_reveal_top_bars(true),
             WebWindowInput::HideHeaderBar => widgets.toolbar_view.set_reveal_top_bars(false),
         }
+        self.update_view(widgets, sender_clone);
     }
 }
