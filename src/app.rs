@@ -18,12 +18,12 @@ use url::Url;
 use webkit6::prelude::WebViewExt;
 
 use crate::config::{APP_ID, PROFILE, VERSION};
-use crate::document::FileSystemEntity;
 use crate::document::{
-    with, Create, Document,
+    with, Catch, Create, Document, FileSystemEntity,
     Folder::{Project, User},
-    Mode,
+    LinesBufReaderFileExt, Map, Mode,
     Project::{Config, Data},
+    ResultDocumentBoxErrorExt,
     User::{Documents, Downloads, Pictures},
 };
 use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};

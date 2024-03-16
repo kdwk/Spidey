@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 use directories;
+use extend::ext;
 use open;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs::{create_dir_all, File, OpenOptions};
-use std::io::Write;
+use std::io::{BufRead, BufReader, Lines, Write};
 use std::ops::{Index, IndexMut};
 use std::path::{Path, PathBuf};
 
@@ -54,14 +55,14 @@ fn join_all(path: &Path, subdirs: &[&str]) -> PathBuf {
 }
 
 impl<'a> Folder<'a> {
-    fn into_pathbuf_result(&self, filename: &str) -> Result<PathBuf, DocumentError> {
+    fn into_pathbuf_result(&self, filename: impl ToString) -> Result<PathBuf, DocumentError> {
         match self {
             Folder::User(subdir) => match subdir {
                 User::Pictures(subdirs) => {
                     if let Some(dir) = directories::UserDirs::new() {
                         if let Some(path) = dir.picture_dir() {
                             let mut pathbuf = join_all(path, subdirs);
-                            pathbuf = pathbuf.join(filename);
+                            pathbuf = pathbuf.join(filename.to_string());
                             Ok(pathbuf)
                         } else {
                             Err(DocumentError::PicturesDirNotFound)?
@@ -74,7 +75,7 @@ impl<'a> Folder<'a> {
                     if let Some(dir) = directories::UserDirs::new() {
                         if let Some(path) = dir.video_dir() {
                             let mut pathbuf = join_all(path, subdirs);
-                            pathbuf = pathbuf.join(filename);
+                            pathbuf = pathbuf.join(filename.to_string());
                             Ok(pathbuf)
                         } else {
                             Err(DocumentError::VideosDirNotFound)?
@@ -87,7 +88,7 @@ impl<'a> Folder<'a> {
                     if let Some(dir) = directories::UserDirs::new() {
                         if let Some(path) = dir.download_dir() {
                             let mut pathbuf = join_all(path, subdirs);
-                            pathbuf = pathbuf.join(filename);
+                            pathbuf = pathbuf.join(filename.to_string());
                             Ok(pathbuf)
                         } else {
                             Err(DocumentError::DownloadsDirNotFound)?
@@ -100,7 +101,7 @@ impl<'a> Folder<'a> {
                     if let Some(dir) = directories::UserDirs::new() {
                         if let Some(path) = dir.document_dir() {
                             let mut pathbuf = join_all(path, subdirs);
-                            pathbuf = pathbuf.join(filename);
+                            pathbuf = pathbuf.join(filename.to_string());
                             Ok(pathbuf)
                         } else {
                             Err(DocumentError::DocumentsDirNotFound)?
@@ -113,7 +114,7 @@ impl<'a> Folder<'a> {
                     if let Some(dir) = directories::UserDirs::new() {
                         let path = dir.home_dir();
                         let mut pathbuf = join_all(path, subdirs);
-                        pathbuf = pathbuf.join(filename);
+                        pathbuf = pathbuf.join(filename.to_string());
                         Ok(pathbuf)
                     } else {
                         Err(DocumentError::UserDirsNotFound)?
@@ -126,7 +127,7 @@ impl<'a> Folder<'a> {
                         directories::ProjectDirs::from(qualifier, organization, application)
                     {
                         let mut pathbuf = join_all(dir.data_dir(), subdirs);
-                        pathbuf = pathbuf.join(filename);
+                        pathbuf = pathbuf.join(filename.to_string());
                         Ok(pathbuf)
                     } else {
                         Err(DocumentError::ProjectDirsNotFound)?
@@ -137,7 +138,7 @@ impl<'a> Folder<'a> {
                         directories::ProjectDirs::from(qualifier, organization, application)
                     {
                         let mut pathbuf = join_all(dir.config_dir(), subdirs);
-                        pathbuf = pathbuf.join(filename);
+                        pathbuf = pathbuf.join(filename.to_string());
                         Ok(pathbuf)
                     } else {
                         Err(DocumentError::ProjectDirsNotFound)?
@@ -237,22 +238,65 @@ pub struct Document {
     create_policy: Create,
 }
 
-impl Document {
-    pub fn at(location: Folder, filename: &str, create: Create) -> Result<Self, Box<dyn Error>> {
-        let mut pathbuf = location.into_pathbuf_result(filename)?;
-        let original_name = pathbuf.name();
-        // let mut setup = || -> Result<_, Box<dyn Error>> {
-
-        //     Ok(())
-        // };
-        // setup()?;
-        let name = pathbuf.name();
-        let extension = pathbuf
+fn parse_filepath(pathbuf: PathBuf) -> (String, Option<i64>, Option<String>) {
+    let mut name = pathbuf.name();
+    let extension = match ".".to_string()
+        + pathbuf
             .extension()
             .unwrap_or(OsStr::new(""))
             .to_str()
             .unwrap_or("")
-            .to_string();
+    {
+        extension if extension == "." => None,
+        extension => Some(extension),
+    };
+    if let Some(extension) = &extension {
+        name = match name.clone().strip_suffix(extension.as_str()) {
+            Some(new_name) => new_name.to_string(),
+            None => name,
+        };
+    }
+    let open_bracket_index = (&name).rfind("(");
+    let close_bracket_index = (&name).rfind(")");
+    let mut duplicate_number = None;
+    if let Some(open_bracket_index) = open_bracket_index {
+        if let Some(close_bracket_index) = close_bracket_index {
+            duplicate_number = match name
+                .split_at(open_bracket_index)
+                .1
+                .split_at(close_bracket_index - open_bracket_index)
+                .0
+                .parse()
+            {
+                Ok(number) => {
+                    name = match name.strip_suffix(format!("({})", number).as_str()) {
+                        Some(new_name) => new_name.to_string(),
+                        None => name,
+                    };
+                    Some(number)
+                }
+                Err(_) => None,
+            }
+        }
+    }
+    (name, duplicate_number, extension)
+}
+
+impl Document {
+    fn setup(
+        mut pathbuf: PathBuf,
+        create: Create,
+        dry_run: bool,
+    ) -> Result<PathBuf, Box<dyn Error>> {
+        let (name, duplicate_number_option, extension_option) = parse_filepath(pathbuf.clone());
+        let mut duplicate_number = 0;
+        let mut extension = String::new();
+        if let Some(number) = duplicate_number_option {
+            duplicate_number = number;
+        }
+        if let Some(ext) = extension_option {
+            extension = ext;
+        }
         match create {
             Create::OnlyIfNotExists => {
                 if let Some(parent_folder) = pathbuf.clone().parent() {
@@ -266,7 +310,7 @@ impl Document {
                         ))?
                     }
                 }
-                if !pathbuf.exists() {
+                if !pathbuf.exists() && !dry_run {
                     OpenOptions::new()
                         .read(false)
                         .write(true)
@@ -286,39 +330,66 @@ impl Document {
                         ))?
                     }
                 }
-                let mut suffix: u32 = 0;
                 while pathbuf.exists() {
-                    suffix += 1;
+                    duplicate_number += 1;
                     let new_filename = name.clone()
                         + "("
-                        + suffix.to_string().as_str()
+                        + duplicate_number.to_string().as_str()
                         + ")"
-                        + if extension.len() > 0 { "." } else { "" }
-                        + extension.as_str();
+                        + if extension.clone().len() > 0 && extension.clone() != "." {
+                            extension.as_str()
+                        } else {
+                            ""
+                        };
                     pathbuf = pathbuf
                         .clone()
                         .parent()
                         .unwrap_or(&Path::new(""))
                         .join(new_filename);
                 }
-                OpenOptions::new()
-                    .read(false)
-                    .write(true)
-                    .create_new(true)
-                    .open(pathbuf.clone())?;
+                if !dry_run {
+                    OpenOptions::new()
+                        .read(false)
+                        .write(true)
+                        .create_new(true)
+                        .open(pathbuf.clone())?;
+                }
             }
             _ => {}
         }
-        if !pathbuf.exists() {
+        if !pathbuf.exists() && !dry_run {
             Err(DocumentError::FileNotFound(pathbuf.path()))?
         }
+        Ok(pathbuf)
+    }
+    pub fn at(
+        location: Folder,
+        filename: impl ToString,
+        create: Create,
+    ) -> Result<Self, Box<dyn Error>> {
+        let mut pathbuf = location.into_pathbuf_result(filename.to_string())?;
+        let original_name = pathbuf.name();
+        pathbuf = Document::setup(pathbuf, create, false)?;
         Ok(Self {
             alias: original_name,
             pathbuf,
             create_policy: create,
         })
     }
-    fn open_file(&mut self, permissions: Mode) -> Result<File, Box<dyn Error>> {
+    pub fn from_path(
+        path: impl ToString,
+        alias: impl ToString,
+        create: Create,
+    ) -> Result<Self, Box<dyn Error>> {
+        let mut pathbuf = PathBuf::from(path.to_string());
+        pathbuf = Document::setup(pathbuf, create, false)?;
+        Ok(Self {
+            alias: alias.to_string(),
+            pathbuf,
+            create_policy: create,
+        })
+    }
+    fn open_file(&self, permissions: Mode) -> Result<File, Box<dyn Error>> {
         match OpenOptions::new()
             .read(permissions.readable())
             .write(permissions.writable())
@@ -329,28 +400,80 @@ impl Document {
             Err(_) => Err(DocumentError::CouldNotOpenFile(self.path()))?,
         }
     }
-    pub fn launch_with_default_app(&self) -> Result<(), Box<dyn Error>> {
+    pub fn launch_with_default_app(&self) -> Result<&Self, Box<dyn Error>> {
         if let Err(_) = open::that_detached(self.path()) {
             Err(DocumentError::CouldNotLaunchFile(self.path()))?
         } else {
-            Ok(())
+            Ok(self)
         }
     }
     pub fn file(&mut self, permissions: Mode) -> Result<File, Box<dyn Error>> {
         self.open_file(permissions)
     }
-    pub fn write(&mut self, content: &[u8]) -> Result<&mut Self, Box<dyn Error>> {
+    pub fn append(&mut self, content: &[u8]) -> Result<&mut Self, Box<dyn Error>> {
         let mut file = self.open_file(Mode::Append)?;
         file.write_all(content)?;
         Ok(self)
     }
-    pub fn extension(&mut self) -> String {
+    pub fn replace_with(&mut self, content: &[u8]) -> Result<&mut Self, Box<dyn Error>> {
+        let mut file = self.open_file(Mode::Replace)?;
+        file.write_all(content)?;
+        Ok(self)
+    }
+    pub fn lines(&self) -> Result<Lines<BufReader<File>>, Box<dyn Error>> {
+        let file = self.open_file(Mode::Read)?;
+        Ok(BufReader::new(file).lines())
+    }
+    pub fn extension(self) -> String {
         self.pathbuf
             .extension()
             .unwrap_or(OsStr::new(""))
             .to_str()
             .unwrap_or("")
             .to_string()
+    }
+}
+
+#[ext(pub)]
+impl Result<Document, Box<dyn Error>> {
+    fn alias(self, alias: &str) -> Result<Document, Box<dyn Error>> {
+        match self {
+            Ok(mut document) => {
+                document.alias = String::from(alias);
+                Ok(document)
+            }
+            Err(error) => Err(error),
+        }
+    }
+    fn suggest_rename(&self) -> String {
+        match self {
+            Ok(document) => {
+                match Document::setup(document.pathbuf.clone(), Create::AutoRenameIfExists, true) {
+                    Ok(new_name) => new_name.path(),
+                    Err(error) => {
+                        eprintln!("{}", error);
+                        "".to_string()
+                    }
+                }
+            }
+            Err(error) => match error.downcast_ref::<DocumentError>() {
+                Some(document_error) => match document_error {
+                    DocumentError::FileNotFound(path) => path.clone(),
+                    _ => "".to_string(),
+                },
+                None => "".to_string(),
+            },
+        }
+    }
+}
+
+#[ext(pub)]
+impl Lines<BufReader<File>> {
+    fn print(self) -> Result<(), Box<dyn Error>> {
+        for line in self {
+            println!("{}", line?);
+        }
+        Ok(())
     }
 }
 
@@ -423,16 +546,22 @@ impl FileSystemEntity for PathBuf {
 
 pub struct Map(HashMap<String, Document>);
 
-impl Index<&str> for Map {
+impl<'a, Str> Index<Str> for Map
+where
+    Str: ToString,
+{
     type Output = Document;
-    fn index(&self, index: &str) -> &Self::Output {
-        &self.0[index]
+    fn index(&self, index: Str) -> &Self::Output {
+        &self.0[index.to_string().as_str()]
     }
 }
 
-impl IndexMut<&str> for Map {
-    fn index_mut(&mut self, index: &str) -> &mut Self::Output {
-        self.0.get_mut(index).unwrap()
+impl<'a, Str> IndexMut<Str> for Map
+where
+    Str: ToString,
+{
+    fn index_mut(&mut self, index: Str) -> &mut Self::Output {
+        self.0.get_mut(index.to_string().as_str()).unwrap()
     }
 }
 
@@ -449,10 +578,42 @@ where
                 return;
             }
         };
-        document_map.insert(document.clone().alias, document);
+        if document.clone().alias != "_" {
+            document_map.insert(document.clone().alias, document);
+        }
     }
     match closure(Map(document_map)) {
         Ok(_) => {}
         Err(error) => eprintln!("{}", error),
+    }
+}
+
+pub trait Catch<T> {
+    fn catch<HandleErrorClosure>(
+        self,
+        closure: HandleErrorClosure,
+    ) -> impl FnOnce(T) -> Result<(), Box<dyn Error>>
+    where
+        HandleErrorClosure: FnOnce(&Box<dyn Error>);
+}
+
+impl<Closure, T> Catch<T> for Closure
+where
+    Closure: FnOnce(T) -> Result<(), Box<dyn Error>>,
+{
+    fn catch<HandleErrorClosure>(
+        self,
+        closure: HandleErrorClosure,
+    ) -> impl FnOnce(T) -> Result<(), Box<dyn Error>>
+    where
+        HandleErrorClosure: FnOnce(&Box<dyn Error>),
+    {
+        |d| match self(d) {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                closure(&error);
+                Err(error)
+            }
+        }
     }
 }

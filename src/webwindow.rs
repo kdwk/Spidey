@@ -3,12 +3,14 @@
 use ashpd::desktop::open_uri::OpenFileRequest;
 use directories;
 use std::{
+    error::Error,
     fs::{create_dir_all, File, OpenOptions},
     io::Write,
+    ops::Deref,
     path::Path,
     process::Command,
     rc::Rc,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{atomic::AtomicBool, Arc, Mutex},
     thread,
     time::Duration,
 };
@@ -18,16 +20,16 @@ use relm4::adw::prelude::*;
 use relm4::gtk::glib::clone;
 use relm4::gtk::{prelude::WidgetExt, prelude::*, EventControllerMotion};
 use relm4::prelude::*;
-use tokio;
-use webkit6::{gio::SimpleAction, prelude::*};
+use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
 use crate::document::{
-    with, Create, Document, FileSystemEntity,
+    with, Catch, Create, Document, FileSystemEntity,
     Folder::{Project, User},
-    Mode,
+    LinesBufReaderFileExt, Map, Mode,
     Project::{Config, Data},
+    ResultDocumentBoxErrorExt,
     User::{Documents, Downloads, Pictures},
 };
 use crate::smallwebwindow::*;
@@ -224,39 +226,35 @@ impl Component for WebWindow {
         if let Some(session) = widgets.web_view.network_session() {
             // Handle downloads
             session.connect_download_started(clone!(@strong toast_overlay_widget_clone as toast_overlay => move |this_session, download_object| {
-                let download_did_fail = Arc::new(AtomicBool::new(false));
-                download_object.connect_failed(clone!(@strong toast_overlay ,@strong download_did_fail => move |this_download_object, error| {
-                    (*download_did_fail).store(true, std::sync::atomic::Ordering::Relaxed);
+                let did_download_fail = Arc::new(AtomicBool::new(false));
+                download_object.connect_decide_destination(|this_download_object, suggested_filename| {
+                    this_download_object.set_destination(Document::at(User(Downloads(&[])), suggested_filename, Create::No).suggest_rename().as_str());
+                    true
+                });
+                download_object.connect_created_destination(clone!(@strong toast_overlay, @strong did_download_fail => move |this_download_object, destination| {
+                    let destination_string = destination.to_string();
+                    this_download_object.connect_finished(clone!(@strong toast_overlay, @strong did_download_fail, @strong destination_string => move |this_download_object| {
+                        if (*did_download_fail).load(std::sync::atomic::Ordering::Relaxed) {return;}
+                        let toast = adw::Toast::new("File saved to Downloads folder");
+                        toast.set_button_label(Some("Open"));
+                        let toast_overlay_clone = toast_overlay.clone();
+                        let destination_string_clone = destination_string.clone();
+                        toast.connect_button_clicked(move |_| {
+                            match Document::from_path(destination_string_clone.clone(), "download_file", Create::No) {
+                                Ok(document) => if let Err(error) = document.launch_with_default_app() {
+                                    toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()));
+                                }
+                                Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
+                            };
+                        });
+                        toast_overlay.add_toast(toast);
+                    }));
+                }));
+                download_object.connect_failed(clone!(@strong toast_overlay ,@strong did_download_fail => move |this_download_object, error| {
+                    (*did_download_fail).store(true, std::sync::atomic::Ordering::Relaxed);
                     eprintln!("{}", error.to_string());
                     toast_overlay
                         .add_toast(adw::Toast::new("Download failed"));
-                }));
-                download_object.connect_finished(clone!(@strong toast_overlay, @strong download_did_fail => move |this_download_object| {
-                    if (*download_did_fail).load(std::sync::atomic::Ordering::Relaxed) {return;}
-                    let toast = adw::Toast::new("File saved to Downloads folder");
-                    toast.set_button_label(Some("Open"));
-                    let downloaded_file_path = match this_download_object.destination() {
-                        Some(destination_gstring) => destination_gstring.to_string(),
-                        None => String::from(""),
-                    };
-                    toast.connect_button_clicked(move |_| {
-                        let file_result = OpenOptions::new()
-                            .read(true)
-                            .open(Path::new(&downloaded_file_path));
-                        relm4::spawn_local(async move {
-                            if let Ok(file) = file_result {
-                                let _ = OpenFileRequest::default()
-                                    .ask(true)
-                                    .send_file(&file)
-                                    .await
-                                    .is_ok_and(|req| {
-                                        let _ = req.response();
-                                        true
-                                    });
-                            }
-                        });
-                    });
-                    toast_overlay.add_toast(toast);
                 }));
             }));
 
@@ -360,24 +358,18 @@ impl Component for WebWindow {
                             web_window.present();
                             // Using async but not threads because WebWindowInput cannot be sent across threads due to one of the variants carrying a WebView
                             let animation_timing_handle = relm4::spawn_local(clone!(@strong sender => async move {
-                                // Wait for 300ms for the WebWindow to be in focus
-                                tokio::time::sleep(Duration::from_millis(300)).await;
-                                // Add the screenshot flash box to the main_overlay of the WebWindow
-                                sender.input(WebWindowInput::BeginScreenshotFlash);
-                                // Wait for the animation to finish
-                                tokio::time::sleep(Duration::from_millis(830)).await;
-                                // Remoe the screenshot flash box
-                                sender.input(WebWindowInput::ScreenshotFlashFinished);
-                                // Wait for another 350ms to prevent whiplash
-                                tokio::time::sleep(Duration::from_millis(350)).await;
-                                // Return focus back to main app window
-                                sender
+                                tokio::time::sleep(Duration::from_millis(300)).await; // Wait for 300ms for the WebWindow to be in focus
+                                sender.input(WebWindowInput::BeginScreenshotFlash); // Add the screenshot flash box to the main_overlay of the WebWindow
+                                tokio::time::sleep(Duration::from_millis(830)).await; // Wait for the animation to finish
+                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remoe the screenshot flash box
+                                tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
+                                sender // Return focus back to main app window
                                     .output(WebWindowOutput::ReturnToMainAppWindow)
                                     .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
                             }));
                             with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
                                 |mut d| {
-                                    d["Screenshot.png"].write(&texture.save_to_png_bytes())?;
+                                    d["Screenshot.png"].replace_with(&texture.save_to_png_bytes())?;
                                     let toast = adw::Toast::builder()
                                         .title("Screenshot saved to Pictures → Screenshots")
                                         .button_label("Open")
