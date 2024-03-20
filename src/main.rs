@@ -2,10 +2,12 @@
 mod config;
 mod app;
 mod document;
+mod recipe;
 mod setup;
 mod smallwebwindow;
 mod webwindow;
 mod webwindowcontrolbar;
+mod whoops;
 
 use relm4::{
     actions::{AccelsPlus, RelmAction, RelmActionGroup},

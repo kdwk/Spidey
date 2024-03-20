@@ -14,13 +14,17 @@ use url::Url;
 use webkit6::prelude::WebViewExt;
 
 use crate::config::{APP_ID, PROFILE, VERSION};
-use crate::document::{
-    with, Catch, Create, Document, FileSystemEntity,
-    Folder::{Project, User},
-    LinesBufReaderFileExt, Map, Mode,
-    Project::{Config, Data},
-    ResultDocumentBoxErrorExt,
-    User::{Documents, Downloads, Pictures},
+use crate::{
+    document::{
+        with, Create, Document, FileSystemEntity,
+        Folder::{Project, User},
+        LinesBufReaderFileExt, Map, Mode,
+        Project::{Config, Data},
+        ResultDocumentBoxErrorExt,
+        User::{Documents, Downloads, Pictures},
+    },
+    recipe::{Discard, Replicate, Run},
+    whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
 use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};
 
