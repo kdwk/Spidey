@@ -24,6 +24,6 @@ chrono = {version="0.4.34", features = ["clock"]}
 tokio = {version="1.35.0", features=["time"]}
 reqwest = {version="0.12.1", features = ["blocking"]}
 ashpd = "0.8.0"
-open = "5.1.1"
+open = "5.1.2"
 extend = "1.2.0"
 tracker = "0.2.1"
