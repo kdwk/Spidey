@@ -14,13 +14,17 @@ use url::Url;
 use webkit6::prelude::WebViewExt;
 
 use crate::config::{APP_ID, PROFILE, VERSION};
-use crate::document::{
-    with, Catch, Create, Document, FileSystemEntity,
-    Folder::{Project, User},
-    LinesBufReaderFileExt, Map, Mode,
-    Project::{Config, Data},
-    ResultDocumentBoxErrorExt,
-    User::{Documents, Downloads, Pictures},
+use crate::{
+    document::{
+        with, Create, Document, FileSystemEntity,
+        Folder::{self, Project, User},
+        LinesBufReaderFileExt, Map, Mode,
+        Project::{Config, Data},
+        ResultDocumentBoxErrorExt,
+        User::{Documents, Downloads, Pictures},
+    },
+    recipe::{Discard, Log, Pass, Pipe, Recipe, Runnable, Step},
+    whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
 use crate::{webwindowcontrolbar::*, AppActionGroup, PresentMainWindow};
 
@@ -234,11 +238,11 @@ impl Component for App {
     ) {
         match message {
             AppInput::NewWebWindow => {
-                let url_processed_result = process_url(String::from(self.url_entry_buffer.text()));
-                if let Some(final_url) = url_processed_result.ok() {
+                let url = process_url(self.url_entry_buffer.text().to_string());
+                if let Some(url) = url {
                     self.webwindowcontrolbars
                         .guard()
-                        .push_back((final_url, self.user_content_filter_store_option.clone()));
+                        .push_back((url, self.user_content_filter_store_option.clone()));
                     self.url_entry_buffer.set_text("");
                     sender.input(AppInput::SaveUrls);
                 }
@@ -384,7 +388,7 @@ impl Component for App {
     }
 }
 
-fn process_url(mut url: String) -> Result<String, ()> {
+fn process_url(mut url: String) -> Option<String> {
     if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {
     } else if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
@@ -397,7 +401,7 @@ fn process_url(mut url: String) -> Result<String, ()> {
     }
     let result = Url::parse(url.as_str());
     match result {
-        Ok(final_url) => Ok(String::from(url)),
-        Err(error) => Err(()),
+        Ok(final_url) => Some(String::from(url)),
+        Err(error) => None,
     }
 }

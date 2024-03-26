@@ -21,15 +21,19 @@ use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::config::{APP_ID, PROFILE};
-use crate::document::{
-    with, Catch, Create, Document, FileSystemEntity,
-    Folder::{Project, User},
-    LinesBufReaderFileExt, Map, Mode,
-    Project::{Config, Data},
-    ResultDocumentBoxErrorExt,
-    User::{Documents, Downloads, Pictures},
-};
 use crate::smallwebwindow::*;
+use crate::{
+    document::{
+        with, Create, Document, FileSystemEntity,
+        Folder::{self, Project, User},
+        LinesBufReaderFileExt, Map, Mode,
+        Project::{Config, Data},
+        ResultDocumentBoxErrorExt,
+        User::{Documents, Downloads, Pictures},
+    },
+    recipe::{Discard, Log, Pass, Pipe, Recipe, Runnable, Step},
+    whoops::{attempt, Catch, IntoWhoops, Whoops},
+};
 
 #[tracker::track]
 pub struct WebWindow {
