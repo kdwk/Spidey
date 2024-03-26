@@ -1,11 +1,15 @@
 #![allow(dead_code)]
+use crate::{
+    recipe::{Discard, Runnable},
+    whoops::{attempt, Catch, IntoWhoops, NoneError, Whoops},
+};
 use directories;
 use extend::ext;
 use open;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
-use std::fmt::Display;
+use std::fmt::{Binary, Display};
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::{BufRead, BufReader, Lines, Write};
 use std::ops::{Index, IndexMut};
@@ -264,7 +268,7 @@ fn parse_filepath(pathbuf: PathBuf) -> (String, Option<i64>, Option<String>) {
             duplicate_number = match name
                 .split_at(open_bracket_index)
                 .1
-                .split_at(close_bracket_index - open_bracket_index)
+                .split_at(close_bracket_index)
                 .0
                 .parse()
             {
@@ -424,7 +428,7 @@ impl Document {
         let file = self.open_file(Mode::Read)?;
         Ok(BufReader::new(file).lines())
     }
-    pub fn extension(self) -> String {
+    pub fn extension(&self) -> String {
         self.pathbuf
             .extension()
             .unwrap_or(OsStr::new(""))
@@ -469,7 +473,7 @@ impl Result<Document, Box<dyn Error>> {
 
 #[ext(pub)]
 impl Lines<BufReader<File>> {
-    fn print(self) -> Result<(), Box<dyn Error>> {
+    fn print(self) -> Whoops {
         for line in self {
             println!("{}", line?);
         }
@@ -565,9 +569,10 @@ where
     }
 }
 
-pub fn with<Closure>(documents: &[Result<Document, Box<dyn Error>>], closure: Closure)
+pub fn with<Closure, Return>(documents: &[Result<Document, Box<dyn Error>>], closure: Closure)
 where
-    Closure: FnOnce(Map) -> Result<(), Box<dyn Error>>,
+    Closure: FnOnce(Map) -> Return,
+    Return: IntoWhoops,
 {
     let mut document_map = HashMap::new();
     for document_result in documents {
@@ -582,38 +587,8 @@ where
             document_map.insert(document.clone().alias, document);
         }
     }
-    match closure(Map(document_map)) {
-        Ok(_) => {}
-        Err(error) => eprintln!("{}", error),
-    }
-}
-
-pub trait Catch<T> {
-    fn catch<HandleErrorClosure>(
-        self,
-        closure: HandleErrorClosure,
-    ) -> impl FnOnce(T) -> Result<(), Box<dyn Error>>
-    where
-        HandleErrorClosure: FnOnce(&Box<dyn Error>);
-}
-
-impl<Closure, T> Catch<T> for Closure
-where
-    Closure: FnOnce(T) -> Result<(), Box<dyn Error>>,
-{
-    fn catch<HandleErrorClosure>(
-        self,
-        closure: HandleErrorClosure,
-    ) -> impl FnOnce(T) -> Result<(), Box<dyn Error>>
-    where
-        HandleErrorClosure: FnOnce(&Box<dyn Error>),
-    {
-        |d| match self(d) {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                closure(&error);
-                Err(error)
-            }
-        }
-    }
+    attempt(|closure: Closure| closure(Map(document_map.clone())))
+        .catch(|error| eprintln!("{error}"))
+        .run(closure)
+        .discard();
 }

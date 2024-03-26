@@ -25,13 +25,13 @@ use crate::smallwebwindow::*;
 use crate::{
     document::{
         with, Create, Document, FileSystemEntity,
-        Folder::{Project, User},
+        Folder::{self, Project, User},
         LinesBufReaderFileExt, Map, Mode,
         Project::{Config, Data},
         ResultDocumentBoxErrorExt,
         User::{Documents, Downloads, Pictures},
     },
-    recipe::{Discard, Replicate, Run},
+    recipe::{Discard, Log, Pass, Pipe, Recipe, Runnable, Step},
     whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
 

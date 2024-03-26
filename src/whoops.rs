@@ -1,4 +1,4 @@
-use std::{any::Any, error::Error, fmt::Display};
+use std::{error::Error, fmt::Display};
 
 #[derive(Debug, Clone, Copy)]
 pub struct NoneError;
@@ -44,7 +44,7 @@ impl<T> IntoWhoops for Option<T> {
 
 pub fn attempt<Closure, Arg, Return>(closure: Closure) -> Closure
 where
-    Closure: FnMut(Arg) -> Return,
+    Closure: Fn(Arg) -> Return,
     Return: IntoWhoops,
 {
     closure
@@ -54,26 +54,26 @@ pub trait Catch<Arg> {
     fn catch<HandleErrorClosure, HandleErrorClosureReturn>(
         self,
         closure: HandleErrorClosure,
-    ) -> impl FnMut(Arg) -> Whoops
+    ) -> impl Fn(Arg) -> Whoops
     where
-        HandleErrorClosure: FnMut(&Box<dyn Error>) -> HandleErrorClosureReturn,
+        HandleErrorClosure: Fn(&Box<dyn Error>) -> HandleErrorClosureReturn,
         HandleErrorClosureReturn: IntoWhoops;
 }
 
 impl<Closure, Arg, Return> Catch<Arg> for Closure
 where
-    Closure: FnMut(Arg) -> Return,
+    Closure: FnOnce(Arg) -> Return + Clone,
     Return: IntoWhoops,
 {
     fn catch<HandleErrorClosure, HandleErrorClosureReturn>(
-        mut self,
-        mut closure: HandleErrorClosure,
-    ) -> impl FnMut(Arg) -> Whoops
+        self,
+        closure: HandleErrorClosure,
+    ) -> impl Fn(Arg) -> Whoops
     where
-        HandleErrorClosure: FnMut(&Box<dyn Error>) -> HandleErrorClosureReturn,
+        HandleErrorClosure: Fn(&Box<dyn Error>) -> HandleErrorClosureReturn,
         HandleErrorClosureReturn: IntoWhoops,
     {
-        move |arg| match self(arg).into_whoops() {
+        move |arg| match self.clone()(arg).into_whoops() {
             Ok(_) => Ok(()),
             Err(error) => {
                 closure(&error);
