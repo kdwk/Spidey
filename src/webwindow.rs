@@ -41,6 +41,7 @@ pub struct WebWindow {
     screenshot_flash_box: gtk::Box,
     can_go_back: bool,
     can_go_forward: bool,
+    show_headerbar: bool,
 }
 
 #[derive(Debug)]
@@ -90,13 +91,13 @@ impl Component for WebWindow {
                         set_halign: gtk::Align::Fill,
                         set_valign: gtk::Align::Start,
                         set_top_bar_style: adw::ToolbarStyle::Raised,
-                        set_reveal_top_bars: false,
+                        #[track = "model.changed(WebWindow::show_headerbar())"]
+                        set_reveal_top_bars: model.show_headerbar,
 
                         #[name(headerbar)]
                         add_top_bar = &adw::HeaderBar {
                             pack_start = &gtk::Box {
                                 set_orientation: gtk::Orientation::Horizontal,
-                                add_css_class: "webwindow-headerbar",
 
                                 #[name(back_btn)]
                                 gtk::Button {
@@ -114,8 +115,21 @@ impl Component for WebWindow {
                                     #[track = "model.changed(WebWindow::can_go_forward())"]
                                     set_sensitive: model.can_go_forward,
                                     connect_clicked => WebWindowInput::Forward,
+                                },
+
+                                #[name(screenshot_btn)]
+                                adw::SplitButton {
+                                    set_icon_name: "screenshooter",
+                                    set_tooltip_text: Some("Take a screenshot"),
+                                    connect_clicked => WebWindowInput::Screenshot,
+                                    #[wrap(Some)]
+                                    set_popover = &gtk::Popover {
+                                        set_tooltip_text: Some("Select screenshot area"),
+
+                                    }
                                 }
                             },
+
                         },
                     },
 
@@ -183,6 +197,7 @@ impl Component for WebWindow {
             screenshot_flash_box,
             can_go_back: false,
             can_go_forward: false,
+            show_headerbar: false,
             tracker: 0,
         };
         let widgets = view_output!();
@@ -412,8 +427,8 @@ impl Component for WebWindow {
             WebWindowInput::ReturnToMainAppWindow => sender
                 .output(WebWindowOutput::ReturnToMainAppWindow)
                 .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
-            WebWindowInput::ShowHeaderBar => widgets.toolbar_view.set_reveal_top_bars(true),
-            WebWindowInput::HideHeaderBar => widgets.toolbar_view.set_reveal_top_bars(false),
+            WebWindowInput::ShowHeaderBar => self.set_show_headerbar(true),
+            WebWindowInput::HideHeaderBar => self.set_show_headerbar(false),
         }
         self.update_view(widgets, sender_clone);
     }
