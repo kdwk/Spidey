@@ -183,7 +183,8 @@ impl FactoryComponent for WebWindowControlBar {
                         eprintln!("Could not copy link to clipboard");
                     }
                 }
-    }
+        }
+        self.update_view(widgets, sender);
     }
 
     fn init_model(init: Self::Init, index: &Self::Index, sender: FactorySender<Self>) -> Self {

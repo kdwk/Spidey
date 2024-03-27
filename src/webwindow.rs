@@ -20,8 +20,11 @@ use relm4::{
 use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
-use crate::config::{APP_ID, PROFILE};
 use crate::smallwebwindow::*;
+use crate::{
+    app::process_url,
+    config::{APP_ID, PROFILE},
+};
 use crate::{
     document::{
         with, Create, Document, FileSystemEntity,
@@ -38,11 +41,15 @@ use crate::{
 #[tracker::track]
 pub struct WebWindow {
     pub url: String,
+    title: String,
     screenshot_flash_box: gtk::Box,
     can_go_back: bool,
     can_go_forward: bool,
     go_back_now: bool,
     go_forward_now: bool,
+    refresh_now: bool,
+    in_title_edit_mode: bool,
+    title_edit_textbuffer: gtk::EntryBuffer,
     show_headerbar: bool,
 }
 
@@ -50,6 +57,7 @@ pub struct WebWindow {
 pub enum WebWindowInput {
     Back,
     Forward,
+    Refresh,
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     LoadChanged(bool, bool),
@@ -59,6 +67,8 @@ pub enum WebWindowInput {
     ScreenshotFlashFinished,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
     ReturnToMainAppWindow,
+    EnterTitleEditMode,
+    LeaveTitleEditMode,
     ShowHeaderBar,
     HideHeaderBar,
 }
@@ -92,12 +102,13 @@ impl Component for WebWindow {
                     add_overlay = &adw::ToolbarView {
                         set_halign: gtk::Align::Fill,
                         set_valign: gtk::Align::Start,
-                        set_top_bar_style: adw::ToolbarStyle::Raised,
+                        set_top_bar_style: adw::ToolbarStyle::RaisedBorder,
                         #[track = "model.changed(WebWindow::show_headerbar())"]
                         set_reveal_top_bars: model.show_headerbar,
 
                         #[name(headerbar)]
                         add_top_bar = &adw::HeaderBar {
+                            add_css_class: "undershoot-top",
                             pack_start = &gtk::Box {
                                 set_orientation: gtk::Orientation::Horizontal,
 
@@ -119,6 +130,13 @@ impl Component for WebWindow {
                                     connect_clicked => WebWindowInput::Forward,
                                 },
 
+                                #[name(refresh_btn)]
+                                gtk::Button {
+                                    set_icon_name: "refresh",
+                                    set_tooltip_text: Some("Refresh"),
+                                    connect_clicked => WebWindowInput::Refresh,
+                                },
+
                                 #[name(screenshot_btn)]
                                 adw::SplitButton {
                                     set_icon_name: "screenshooter",
@@ -131,6 +149,39 @@ impl Component for WebWindow {
                                     }
                                 }
                             },
+                            #[wrap(Some)]
+                            set_title_widget = &gtk::Box {
+                                set_orientation: gtk::Orientation::Horizontal,
+
+                                if model.in_title_edit_mode {
+                                    gtk::Entry {
+                                        set_width_request: 100,
+                                        #[track = "model.changed(WebWindow::in_title_edit_mode())"]
+                                        grab_focus: (),
+                                        #[track = "model.changed(WebWindow::title_edit_textbuffer())"]
+                                        set_buffer: &model.title_edit_textbuffer,
+                                        set_placeholder_text: Some("Search the web or enter a link"),
+                                        set_input_purpose: gtk::InputPurpose::Url,
+                                        set_input_hints: gtk::InputHints::NO_SPELLCHECK,
+                                        set_icon_from_icon_name: (gtk::EntryIconPosition::Secondary, Some("arrow3-right-symbolic")),
+                                        set_icon_tooltip_text: (gtk::EntryIconPosition::Secondary, Some("Go")),
+                                        connect_activate => WebWindowInput::LeaveTitleEditMode,
+                                        connect_icon_press[sender] => move |_this_entry, icon_position| {
+                                            if let gtk::EntryIconPosition::Secondary = icon_position {
+                                                sender.input(WebWindowInput::LeaveTitleEditMode);
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    gtk::Button {
+                                        set_width_request: 100,
+                                        set_can_shrink: true,
+                                        #[track = "model.changed(WebWindow::title())"]
+                                        set_label: model.title.as_str(),
+                                        connect_clicked => WebWindowInput::EnterTitleEditMode,
+                                    }
+                                },
+                            }
 
                         },
                     },
@@ -145,21 +196,28 @@ impl Component for WebWindow {
                     #[name(web_view)]
                     webkit6::WebView {
                         set_vexpand: true,
+                        #[track = "model.changed(WebWindow::url())"]
                         load_uri: model.url.as_str(),
                         #[track = "model.changed(WebWindow::go_back_now())"]
                         go_back: (),
                         #[track = "model.changed(WebWindow::go_forward_now())"]
                         go_forward: (),
+                        #[track = "model.changed(WebWindow::refresh_now())"]
+                        reload: (),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
                             sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
-                            // sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
+                            sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
                         },
                         connect_title_notify[sender] => move |this_webview| {
                             let title = this_webview.title().map(|title| ToString::to_string(&title));
-                            sender.input(WebWindowInput::TitleChanged(match title {
+                            sender.input(WebWindowInput::TitleChanged(match title.clone() {
                                 Some(text) => text,
                                 None => String::from("")
                             }));
+                            sender.output(WebWindowOutput::TitleChanged(match title {
+                                Some(text) => text,
+                                None => String::from("")
+                            })).expect("Could not send WebWindowOutput::TitleChanged")
                         },
                         connect_insecure_content_detected[sender] => move |_, _| {
                             sender.input(WebWindowInput::InsecureContentDetected);
@@ -199,13 +257,17 @@ impl Component for WebWindow {
             .build();
         screenshot_flash_box.add_css_class("screenshot-in-progress");
         let model = WebWindow {
-            url: init.0,
+            url: init.0.clone(),
             screenshot_flash_box,
             can_go_back: false,
             can_go_forward: false,
             go_back_now: false,
             go_forward_now: false,
+            refresh_now: false,
             show_headerbar: false,
+            title: init.0,
+            in_title_edit_mode: false,
+            title_edit_textbuffer: gtk::EntryBuffer::new(Some("")),
             tracker: 0,
         };
         let widgets = view_output!();
@@ -303,7 +365,6 @@ impl Component for WebWindow {
                             d["cookies.sqlite"].path().as_str(),
                             webkit6::CookiePersistentStorage::Sqlite,
                         );
-                        Ok(())
                     },
                 );
             }
@@ -327,6 +388,7 @@ impl Component for WebWindow {
         match message {
             WebWindowInput::Back => self.set_go_back_now(!self.go_back_now),
             WebWindowInput::Forward => self.set_go_forward_now(!self.go_forward_now),
+            WebWindowInput::Refresh => self.set_refresh_now(!self.refresh_now),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
@@ -367,10 +429,27 @@ impl Component for WebWindow {
                 }
             }
             WebWindowInput::TitleChanged(title) => {
-                widgets.web_window.set_title(Some(title.as_str()));
+                self.set_title(title.clone());
                 sender
                     .output(WebWindowOutput::TitleChanged(title))
                     .expect("Could not send output WebWindowOutput::TitleChanged");
+            }
+            WebWindowInput::EnterTitleEditMode => {
+                self.set_title_edit_textbuffer(gtk::EntryBuffer::new(Some(self.url.clone())));
+                self.set_in_title_edit_mode(true);
+            }
+            WebWindowInput::LeaveTitleEditMode => {
+                let input = self.title_edit_textbuffer.text().to_string();
+                self.title_edit_textbuffer.set_text("");
+                self.set_in_title_edit_mode(false);
+                let url = match process_url(input.clone()) {
+                    Some(url) => url,
+                    None => self.url.clone(),
+                };
+                if url != self.url {
+                    self.set_title(input);
+                    self.set_url(url)
+                }
             }
             WebWindowInput::LoadChanged(can_go_back, can_go_forward) => {
                 self.set_can_go_back(can_go_back);

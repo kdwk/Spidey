@@ -381,14 +381,13 @@ impl Component for App {
             }
 
             AppInput::FocusUrlEntry => {
-                println!("focus");
                 widgets.url_entry.grab_focus();
             }
         }
     }
 }
 
-fn process_url(mut url: String) -> Option<String> {
+pub fn process_url(mut url: String) -> Option<String> {
     if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {
     } else if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());
