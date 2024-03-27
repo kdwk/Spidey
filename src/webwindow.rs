@@ -41,6 +41,8 @@ pub struct WebWindow {
     screenshot_flash_box: gtk::Box,
     can_go_back: bool,
     can_go_forward: bool,
+    go_back_now: bool,
+    go_forward_now: bool,
     show_headerbar: bool,
 }
 
@@ -52,7 +54,7 @@ pub enum WebWindowInput {
     TitleChanged(String),
     LoadChanged(bool, bool),
     InsecureContentDetected,
-    Screenshot,
+    Screenshot(bool),
     BeginScreenshotFlash,
     ScreenshotFlashFinished,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
@@ -121,7 +123,7 @@ impl Component for WebWindow {
                                 adw::SplitButton {
                                     set_icon_name: "screenshooter",
                                     set_tooltip_text: Some("Take a screenshot"),
-                                    connect_clicked => WebWindowInput::Screenshot,
+                                    connect_clicked => WebWindowInput::Screenshot(false),
                                     #[wrap(Some)]
                                     set_popover = &gtk::Popover {
                                         set_tooltip_text: Some("Select screenshot area"),
@@ -144,6 +146,10 @@ impl Component for WebWindow {
                     webkit6::WebView {
                         set_vexpand: true,
                         load_uri: model.url.as_str(),
+                        #[track = "model.changed(WebWindow::go_back_now())"]
+                        go_back: (),
+                        #[track = "model.changed(WebWindow::go_forward_now())"]
+                        go_forward: (),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
                             sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
                             // sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
@@ -197,6 +203,8 @@ impl Component for WebWindow {
             screenshot_flash_box,
             can_go_back: false,
             can_go_forward: false,
+            go_back_now: false,
+            go_forward_now: false,
             show_headerbar: false,
             tracker: 0,
         };
@@ -317,8 +325,8 @@ impl Component for WebWindow {
         self.reset();
         let sender_clone = sender.clone();
         match message {
-            WebWindowInput::Back => widgets.web_view.go_back(),
-            WebWindowInput::Forward => widgets.web_view.go_forward(),
+            WebWindowInput::Back => self.set_go_back_now(!self.go_back_now),
+            WebWindowInput::Forward => self.set_go_forward_now(!self.go_forward_now),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
@@ -371,7 +379,7 @@ impl Component for WebWindow {
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
                 .add_toast(adw::Toast::new("This page is insecure")),
-            WebWindowInput::Screenshot => {
+            WebWindowInput::Screenshot(need_return_main_app) => {
                 widgets.web_view.snapshot(
                     webkit6::SnapshotRegion::Visible,
                     webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
@@ -385,11 +393,13 @@ impl Component for WebWindow {
                                 tokio::time::sleep(Duration::from_millis(300)).await; // Wait for 300ms for the WebWindow to be in focus
                                 sender.input(WebWindowInput::BeginScreenshotFlash); // Add the screenshot flash box to the main_overlay of the WebWindow
                                 tokio::time::sleep(Duration::from_millis(830)).await; // Wait for the animation to finish
-                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remoe the screenshot flash box
-                                tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
-                                sender // Return focus back to main app window
-                                    .output(WebWindowOutput::ReturnToMainAppWindow)
-                                    .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
+                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remove the screenshot flash box
+                                if need_return_main_app {
+                                    tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
+                                    sender // Return focus back to main app window
+                                        .output(WebWindowOutput::ReturnToMainAppWindow)
+                                        .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
+                                }
                             }));
                             with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
                                 |mut d| {

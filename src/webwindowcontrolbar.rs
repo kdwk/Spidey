@@ -156,7 +156,7 @@ impl FactoryComponent for WebWindowControlBar {
                 WebWindowControlBarInput::Screenshot => self
                     .webwindow
                     .sender()
-                    .send(WebWindowInput::Screenshot)
+                    .send(WebWindowInput::Screenshot(true))
                     .expect("Could not send WebWindowInput::Screenshot to WebWindow"),
                 WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
                 WebWindowControlBarInput::ReturnToMainAppWindow => {
