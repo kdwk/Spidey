@@ -11,6 +11,7 @@ use relm4::{
     actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup},
     adw::prelude::*,
     gtk::{
+        gdk::ContentProvider,
         glib::clone,
         prelude::{WidgetExt, *},
         EventControllerMotion,
@@ -58,6 +59,7 @@ pub enum WebWindowInput {
     Back,
     Forward,
     Refresh,
+    CopyUrl,
     CreateSmallWebWindow(webkit6::WebView),
     TitleChanged(String),
     LoadChanged(bool, bool),
@@ -145,7 +147,6 @@ impl Component for WebWindow {
                                     #[wrap(Some)]
                                     set_popover = &gtk::Popover {
                                         set_tooltip_text: Some("Select screenshot area"),
-
                                     }
                                 }
                             },
@@ -155,7 +156,7 @@ impl Component for WebWindow {
 
                                 if model.in_title_edit_mode {
                                     gtk::Entry {
-                                        set_width_request: 100,
+                                        set_width_request: 350,
                                         #[track = "model.changed(WebWindow::in_title_edit_mode())"]
                                         grab_focus: (),
                                         #[track = "model.changed(WebWindow::title_edit_textbuffer())"]
@@ -174,14 +175,20 @@ impl Component for WebWindow {
                                     }
                                 } else {
                                     gtk::Button {
-                                        set_width_request: 100,
+                                        set_width_request: 350,
                                         set_can_shrink: true,
                                         #[track = "model.changed(WebWindow::title())"]
                                         set_label: model.title.as_str(),
                                         connect_clicked => WebWindowInput::EnterTitleEditMode,
                                     }
                                 },
-                            }
+
+                                gtk::Button {
+                                    set_icon_name: "copy",
+                                    add_css_class: "flat",
+                                    connect_clicked => WebWindowInput::CopyUrl,
+                                }
+                            },
 
                         },
                     },
@@ -389,6 +396,21 @@ impl Component for WebWindow {
             WebWindowInput::Back => self.set_go_back_now(!self.go_back_now),
             WebWindowInput::Forward => self.set_go_forward_now(!self.go_forward_now),
             WebWindowInput::Refresh => self.set_refresh_now(!self.refresh_now),
+            WebWindowInput::CopyUrl => {
+                let clipboard = widgets.web_view.clipboard();
+                if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(
+                    &gtk::glib::Value::from(if let Some(uri) = widgets.web_view.uri() {
+                        uri.to_string()
+                    } else {
+                        String::from("")
+                    }),
+                ))) {
+                    eprintln!("Could not copy link to clipboard");
+                }
+                widgets
+                    .toast_overlay
+                    .add_toast(adw::Toast::new("Copied link to clipboard"));
+            }
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
