@@ -224,7 +224,7 @@ impl Component for WebWindow {
                             },
                             #[wrap(Some)]
                             set_title_widget = &adw::Clamp {
-                                set_maximum_size: 300,
+                                set_maximum_size: 350,
 
                                 gtk::Box {
                                     set_orientation: gtk::Orientation::Horizontal,
@@ -233,7 +233,7 @@ impl Component for WebWindow {
                                         #[name(title_edit_entry)]
                                         gtk::Entry {
                                             set_margin_start: 24,
-                                            set_width_request: 300,
+                                            set_width_request: 350,
                                             #[track = "model.changed(WebWindow::in_title_edit_mode())"]
                                             grab_focus: (),
                                             #[track = "model.changed(WebWindow::url())"]
@@ -253,7 +253,7 @@ impl Component for WebWindow {
                                     } else {
                                         gtk::Button {
                                             set_margin_start: 24,
-                                            set_width_request: 300,
+                                            set_width_request: 350,
                                             set_can_shrink: true,
                                             set_tooltip_text: Some("Click to enter link or search"),
 
@@ -273,6 +273,7 @@ impl Component for WebWindow {
 
                                                 gtk::Label {
                                                     set_margin_start: 7,
+                                                    set_ellipsize: gtk::pango::EllipsizeMode::End,
                                                     #[track = "model.changed(WebWindow::title())"]
                                                     set_label: model.title.as_str()
                                                 }
@@ -288,7 +289,7 @@ impl Component for WebWindow {
                                         add_css_class: "flat",
                                         connect_clicked => WebWindowInput::CopyLink,
                                     }
-                                }
+                                },
                             },
 
                             pack_end = &gtk::Box {

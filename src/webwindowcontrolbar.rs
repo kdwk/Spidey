@@ -107,14 +107,16 @@ impl FactoryComponent for WebWindowControlBar {
                     set_child = &gtk::Box {
                         set_orientation: gtk::Orientation::Horizontal,
                         set_halign: gtk::Align::Start,
-                        set_margin_start: 15,
+                        set_margin_start: 10,
+                        set_margin_end: 10,
 
                         #[name(title_label)]
                         gtk::Label {
                             set_margin_start: 7,
                             set_ellipsize: gtk::pango::EllipsizeMode::End,
+                            set_use_markup: true,
                             #[watch]
-                            set_label: self.label.as_str()
+                            set_label: format!("<span weight=\"normal\">{}</span>", self.label).as_str()
                         }
                     },
 
