@@ -70,87 +70,76 @@ impl FactoryComponent for WebWindowControlBar {
     type ParentWidget = gtk::Box;
 
     view! {
-        adw::Clamp {
-            gtk::Box {
-                set_orientation: gtk::Orientation::Horizontal,
-                set_spacing: 0,
-                set_margin_all: 5,
+        gtk::Box {
+            set_orientation: gtk::Orientation::Horizontal,
+            set_spacing: 0,
+            set_margin_all: 5,
 
-                #[name(label)]
-                if self.in_title_edit_mode {
-                    #[name(title_edit_entry)]
-                    gtk::Entry {
-                        add_css_class: "circular",
-                        set_hexpand: true,
-                        set_margin_start: 10,
-                        set_buffer: &self.title_edit_textbuffer,
-                        set_placeholder_text: Some("Search the web or enter a link"),
-                        set_input_purpose: gtk::InputPurpose::Url,
-                        set_input_hints: gtk::InputHints::NO_SPELLCHECK,
-                        set_icon_from_icon_name: (gtk::EntryIconPosition::Secondary, Some("arrow3-right-symbolic")),
-                        set_icon_tooltip_text: (gtk::EntryIconPosition::Secondary, Some("Go")),
-                        connect_activate => WebWindowControlBarInput::LeaveTitleEditMode,
-                        connect_icon_press[sender] => move |_this_entry, icon_position| {
-                            if let gtk::EntryIconPosition::Secondary = icon_position {
-                                sender.input(WebWindowControlBarInput::LeaveTitleEditMode);
-                            }
-                        },
-                    }
-                } else {
-                    #[name(title_button)]
-                    gtk::Button {
-                        set_hexpand: true,
-                        set_can_shrink: true,
-                        add_css_class: "flat",
-                        add_css_class: "circular",
-                        set_tooltip_text: Some("Click to enter link or search"),
-
-                        #[wrap(Some)]
-                        set_child = &gtk::Box {
-                            set_orientation: gtk::Orientation::Horizontal,
-                            set_halign: gtk::Align::Start,
-                            set_margin_start: 15,
-                            #[name(padlock_image)]
-                            gtk::Image {
-                                #[watch]
-                                set_from_icon_name: if self.url.starts_with("https://") || self.url.starts_with("webkit://") {
-                                    Some("padlock2")
-                                } else if self.url.starts_with("http://") {
-                                    Some("padlock2-open")
-                                } else {None},
-                            },
-
-                            #[name(title_label)]
-                            gtk::Label {
-                                set_margin_start: 7,
-                                #[watch]
-                                set_label: self.label.as_str()
-                            }
-                        },
-
-                        connect_clicked => WebWindowControlBarInput::EnterTitleEditMode,
-                    }
-                },
-
-                #[name(action_menu_button)]
-                gtk::MenuButton{
-                    add_css_class: "circular",
-                    add_css_class: "flat",
-                    set_icon_name: "menu",
-                    set_tooltip_text: Some("Actions"),
-                    #[wrap(Some)]
-                    set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
-                },
-
-                #[name(close_btn)]
-                gtk::Button {
-                    add_css_class: "circular",
-                    add_css_class: "flat",
-                    add_css_class: "toolbar-button",
-                    set_icon_name: "cross",
-                    set_tooltip_text: Some("Close"),
-                    connect_clicked => WebWindowControlBarInput::Close,
+            #[name(label)]
+            if self.in_title_edit_mode {
+                #[name(title_edit_entry)]
+                gtk::Entry {
+                    set_hexpand: true,
+                    set_margin_start: 10,
+                    set_buffer: &self.title_edit_textbuffer,
+                    set_placeholder_text: Some("Search the web or enter a link"),
+                    set_input_purpose: gtk::InputPurpose::Url,
+                    set_input_hints: gtk::InputHints::NO_SPELLCHECK,
+                    set_icon_from_icon_name: (gtk::EntryIconPosition::Secondary, Some("arrow3-right-symbolic")),
+                    set_icon_tooltip_text: (gtk::EntryIconPosition::Secondary, Some("Go")),
+                    connect_activate => WebWindowControlBarInput::LeaveTitleEditMode,
+                    connect_icon_press[sender] => move |_this_entry, icon_position| {
+                        if let gtk::EntryIconPosition::Secondary = icon_position {
+                            sender.input(WebWindowControlBarInput::LeaveTitleEditMode);
+                        }
+                    },
                 }
+            } else {
+                #[name(title_button)]
+                gtk::Button {
+                    set_hexpand: true,
+                    set_can_shrink: true,
+                    add_css_class: "flat",
+                    add_css_class: "circular",
+                    set_tooltip_text: Some("Click to enter link or search"),
+
+                    #[wrap(Some)]
+                    set_child = &gtk::Box {
+                        set_orientation: gtk::Orientation::Horizontal,
+                        set_halign: gtk::Align::Start,
+                        set_margin_start: 15,
+
+                        #[name(title_label)]
+                        gtk::Label {
+                            set_margin_start: 7,
+                            set_ellipsize: gtk::pango::EllipsizeMode::End,
+                            #[watch]
+                            set_label: self.label.as_str()
+                        }
+                    },
+
+                    connect_clicked => WebWindowControlBarInput::EnterTitleEditMode,
+                }
+            },
+
+            #[name(action_menu_button)]
+            gtk::MenuButton{
+                add_css_class: "circular",
+                add_css_class: "flat",
+                set_icon_name: "menu",
+                set_tooltip_text: Some("Actions"),
+                #[wrap(Some)]
+                set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
+            },
+
+            #[name(close_btn)]
+            gtk::Button {
+                add_css_class: "circular",
+                add_css_class: "flat",
+                add_css_class: "toolbar-button",
+                set_icon_name: "cross",
+                set_tooltip_text: Some("Close"),
+                connect_clicked => WebWindowControlBarInput::Close,
             }
         }
     }
@@ -313,7 +302,6 @@ impl FactoryComponent for WebWindowControlBar {
             close_btn: widgets.close_btn,
             title_edit_entry: widgets.title_edit_entry,
             title_button: widgets.title_button,
-            padlock_image: widgets.padlock_image,
             title_label: widgets.title_label,
         }
     }
