@@ -40,6 +40,34 @@ use crate::{
     whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct Inhibited {
+    no_of_inhibitions: u32,
+}
+
+impl Inhibited {
+    fn new() -> Self {
+        Self {
+            no_of_inhibitions: 0,
+        }
+    }
+    fn inhibit(&mut self) {
+        self.no_of_inhibitions += 1;
+    }
+    fn release(&mut self) {
+        if let Some(result) = self.no_of_inhibitions.checked_sub(1) {
+            self.no_of_inhibitions = result;
+        }
+    }
+    fn is_clear(&self) -> bool {
+        if self.no_of_inhibitions == 0 {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[tracker::track]
 pub struct WebWindow {
     pub url: String,
@@ -53,6 +81,8 @@ pub struct WebWindow {
     fullscreen: bool,
     in_title_edit_mode: bool,
     title_edit_textbuffer: gtk::EntryBuffer,
+    can_hide_headerbar: Inhibited,
+    pin_headerbar: bool,
     show_headerbar: bool,
 }
 
@@ -75,8 +105,12 @@ pub enum WebWindowInput {
     EnterTitleEditMode,
     LeaveTitleEditMode,
     ShowHeaderBar,
+    BeginHideHeaderBarTimeout,
     HideHeaderBar,
     ToggleFullscreen,
+    TogglePinHeaderBar,
+    InhibitHideHeaderBar,
+    ReleaseHideHeaderBar,
 }
 
 #[derive(Debug)]
@@ -85,6 +119,24 @@ pub enum WebWindowOutput {
     TitleChanged(String, String),
     ReturnToMainAppWindow,
     Close,
+}
+
+trait OptionallyChangeCSSClasses {
+    fn optionally_add_css_class(&self, css_class: Option<&str>);
+    fn optionally_remove_css_class(&self, css_class: Option<&str>);
+}
+
+impl OptionallyChangeCSSClasses for gtk::Button {
+    fn optionally_add_css_class(&self, css_class: Option<&str>) {
+        if let Some(css_class) = css_class {
+            self.add_css_class(css_class);
+        }
+    }
+    fn optionally_remove_css_class(&self, css_class: Option<&str>) {
+        if let Some(css_class) = css_class {
+            self.remove_css_class(css_class);
+        }
+    }
 }
 
 relm4::new_action_group!(WebWindowActionGroup, "webwindow");
@@ -115,8 +167,10 @@ impl Component for WebWindow {
                         set_halign: gtk::Align::Fill,
                         set_valign: gtk::Align::Start,
                         set_top_bar_style: adw::ToolbarStyle::RaisedBorder,
-                        #[track = "model.changed(WebWindow::show_headerbar())"]
-                        set_reveal_top_bars: model.show_headerbar,
+                        #[track = "model.changed(WebWindow::show_headerbar()) || model.changed(WebWindow::can_hide_headerbar())"]
+                        set_reveal_top_bars: if model.can_hide_headerbar.is_clear() {
+                            model.show_headerbar
+                        } else {true},
 
                         #[name(headerbar)]
                         add_top_bar = &adw::HeaderBar {
@@ -162,7 +216,10 @@ impl Component for WebWindow {
                                     set_tooltip_text: Some("Take a screenshot"),
                                     connect_clicked => WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::Visible),
                                     #[wrap(Some)]
-                                    set_popover = &gtk::PopoverMenu::from_model(Some(&screenshot_menu)),
+                                    set_popover = &gtk::PopoverMenu::from_model(Some(&screenshot_menu)) {
+                                        connect_show => WebWindowInput::InhibitHideHeaderBar,
+                                        connect_closed => WebWindowInput::ReleaseHideHeaderBar,
+                                    },
                                 }
                             },
                             #[wrap(Some)]
@@ -236,6 +293,25 @@ impl Component for WebWindow {
 
                             pack_end = &gtk::Box {
                                 set_orientation: gtk::Orientation::Horizontal,
+
+                                gtk::Button {
+                                    set_icon_name: "pin",
+                                    #[track = "model.changed(WebWindow::pin_headerbar())"]
+                                    set_tooltip_text: if model.pin_headerbar {
+                                        Some("Unpin header bar")
+                                    } else {
+                                        Some("Pin header bar")
+                                    },
+                                    #[track = "model.changed(WebWindow::pin_headerbar())"]
+                                    optionally_add_css_class: if model.pin_headerbar {
+                                        Some("raised")
+                                    } else {None},
+                                    #[track = "model.changed(WebWindow::pin_headerbar())"]
+                                    optionally_remove_css_class: if !model.pin_headerbar {
+                                        Some("raised")
+                                    } else {None},
+                                    connect_clicked => WebWindowInput::TogglePinHeaderBar
+                                },
 
                                 gtk::Button {
                                     set_icon_name: "move-to-window",
@@ -353,6 +429,8 @@ impl Component for WebWindow {
             in_title_edit_mode: false,
             title_edit_textbuffer: gtk::EntryBuffer::new(Some("")),
             fullscreen: false,
+            can_hide_headerbar: Inhibited::new(),
+            pin_headerbar: false,
             tracker: 0,
         };
         let widgets = view_output!();
@@ -387,7 +465,7 @@ impl Component for WebWindow {
             .add_controller(show_toolbars_event_controller);
         let hide_toolbars_event_controller = EventControllerMotion::new();
         hide_toolbars_event_controller.connect_leave(clone!(@strong sender => move |_| {
-            sender.input(WebWindowInput::HideHeaderBar);
+            sender.input(WebWindowInput::BeginHideHeaderBarTimeout);
         }));
         widgets
             .headerbar
@@ -647,7 +725,17 @@ impl Component for WebWindow {
                 .output(WebWindowOutput::ReturnToMainAppWindow)
                 .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
             WebWindowInput::ShowHeaderBar => self.set_show_headerbar(true),
-            WebWindowInput::HideHeaderBar => self.set_show_headerbar(false),
+            WebWindowInput::BeginHideHeaderBarTimeout => {
+                relm4::spawn_local(clone!(@strong sender => async move {
+                    _ = tokio::time::sleep(Duration::from_millis(100));
+                    sender.input(WebWindowInput::HideHeaderBar);
+                }));
+            }
+            WebWindowInput::HideHeaderBar => {
+                if self.can_hide_headerbar.is_clear() {
+                    self.set_show_headerbar(false);
+                }
+            }
             WebWindowInput::ToggleFullscreen => {
                 if widgets.web_window.is_fullscreen() {
                     widgets.web_window.unfullscreen();
@@ -655,6 +743,23 @@ impl Component for WebWindow {
                 } else {
                     widgets.web_window.fullscreen();
                     self.set_fullscreen(true);
+                }
+            }
+            WebWindowInput::InhibitHideHeaderBar => {
+                self.can_hide_headerbar.inhibit();
+                self.set_can_hide_headerbar(self.can_hide_headerbar);
+            }
+            WebWindowInput::ReleaseHideHeaderBar => {
+                self.can_hide_headerbar.release();
+                self.set_can_hide_headerbar(self.can_hide_headerbar);
+            }
+            WebWindowInput::TogglePinHeaderBar => {
+                if self.pin_headerbar {
+                    self.set_pin_headerbar(false);
+                    sender.input(WebWindowInput::ReleaseHideHeaderBar);
+                } else {
+                    self.set_pin_headerbar(true);
+                    sender.input(WebWindowInput::InhibitHideHeaderBar);
                 }
             }
         }
