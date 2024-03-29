@@ -9,16 +9,19 @@ use relm4::{
 use webkit6::gdk::ContentProvider;
 use webkit6::prelude::*;
 
-use crate::app::AppInput;
+use crate::app::{process_url, AppInput};
 use crate::config::{APP_ID, PROFILE};
 use crate::webwindow::*;
 
 pub struct WebWindowControlBar {
     id: DynamicIndex,
     label: String,
+    url: String,
     pub webwindow: Controller<WebWindow>,
     web_view_can_go_back: bool,
     web_view_can_go_forward: bool,
+    in_title_edit_mode: bool,
+    title_edit_textbuffer: gtk::EntryBuffer,
 }
 
 pub type WebWindowControlBarInit = (String, Option<webkit6::UserContentFilterStore>);
@@ -33,9 +36,11 @@ pub enum WebWindowControlBarInput {
     Screenshot,
     ReturnToMainAppWindow,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
-    LoadChanged((bool, bool)),
-    TitleChanged(String),
+    LoadChanged(bool, bool, String),
+    TitleChanged(String, String),
     CopyLink,
+    EnterTitleEditMode,
+    LeaveTitleEditMode,
 }
 
 #[derive(Debug)]
@@ -45,6 +50,9 @@ pub enum WebWindowControlBarOutput {
 }
 
 relm4::new_action_group!(WebWindowControlBarActionGroup, "webwindowcontrolbar");
+relm4::new_stateless_action!(BackAction, WebWindowControlBarActionGroup, "back");
+relm4::new_stateless_action!(ForwardAction, WebWindowControlBarActionGroup, "forward");
+relm4::new_stateless_action!(RefreshAction, WebWindowControlBarActionGroup, "refresh");
 relm4::new_stateless_action!(
     ScreenshotAction,
     WebWindowControlBarActionGroup,
@@ -62,77 +70,96 @@ impl FactoryComponent for WebWindowControlBar {
     type ParentWidget = gtk::Box;
 
     view! {
-        gtk::Box {
-            set_orientation: gtk::Orientation::Horizontal,
-            set_spacing: 0,
-            set_margin_all: 5,
+        adw::Clamp {
+            gtk::Box {
+                set_orientation: gtk::Orientation::Horizontal,
+                set_spacing: 0,
+                set_margin_all: 5,
 
-            #[name(back_btn)]
-            gtk::Button {
-                add_css_class: "circular",
-                add_css_class: "flat",
-                set_icon_name: "left",
-                set_tooltip_text: Some("Back"),
-                #[watch]
-                set_sensitive: self.web_view_can_go_back,
-                connect_clicked => WebWindowControlBarInput::Back,
-            },
+                #[name(label)]
+                if self.in_title_edit_mode {
+                    #[name(title_edit_entry)]
+                    gtk::Entry {
+                        add_css_class: "circular",
+                        set_hexpand: true,
+                        set_margin_start: 10,
+                        set_buffer: &self.title_edit_textbuffer,
+                        set_placeholder_text: Some("Search the web or enter a link"),
+                        set_input_purpose: gtk::InputPurpose::Url,
+                        set_input_hints: gtk::InputHints::NO_SPELLCHECK,
+                        set_icon_from_icon_name: (gtk::EntryIconPosition::Secondary, Some("arrow3-right-symbolic")),
+                        set_icon_tooltip_text: (gtk::EntryIconPosition::Secondary, Some("Go")),
+                        connect_activate => WebWindowControlBarInput::LeaveTitleEditMode,
+                        connect_icon_press[sender] => move |_this_entry, icon_position| {
+                            if let gtk::EntryIconPosition::Secondary = icon_position {
+                                sender.input(WebWindowControlBarInput::LeaveTitleEditMode);
+                            }
+                        },
+                    }
+                } else {
+                    #[name(title_button)]
+                    gtk::Button {
+                        set_hexpand: true,
+                        set_can_shrink: true,
+                        add_css_class: "flat",
+                        add_css_class: "circular",
+                        set_tooltip_text: Some("Click to enter link or search"),
 
-            #[name(forward_btn)]
-            gtk::Button {
-                add_css_class: "circular",
-                add_css_class: "flat",
-                set_icon_name: "right",
-                set_tooltip_text: Some("Forward"),
-                #[watch]
-                set_sensitive: self.web_view_can_go_forward,
-                connect_clicked => WebWindowControlBarInput::Forward,
-            },
+                        #[wrap(Some)]
+                        set_child = &gtk::Box {
+                            set_orientation: gtk::Orientation::Horizontal,
+                            set_halign: gtk::Align::Start,
+                            set_margin_start: 15,
+                            #[name(padlock_image)]
+                            gtk::Image {
+                                #[watch]
+                                set_from_icon_name: if self.url.starts_with("https://") || self.url.starts_with("webkit://") {
+                                    Some("padlock2")
+                                } else if self.url.starts_with("http://") {
+                                    Some("padlock2-open")
+                                } else {None},
+                            },
 
-            #[name(refresh_btn)]
-            gtk::Button {
-                add_css_class: "circular",
-                add_css_class: "flat",
-                set_icon_name: "refresh",
-                set_tooltip_text: Some("Refresh"),
-                connect_clicked => WebWindowControlBarInput::Refresh,
-            },
+                            #[name(title_label)]
+                            gtk::Label {
+                                set_margin_start: 7,
+                                #[watch]
+                                set_label: self.label.as_str()
+                            }
+                        },
 
-            #[name(label)]
-            gtk::Label {
-                set_hexpand: true,
-                set_halign: gtk::Align::Start,
-                set_margin_start: 5,
-                set_margin_end: 5,
-                set_ellipsize: gtk::pango::EllipsizeMode::End,
-                #[watch]
-                set_label: &self.label,
-            },
+                        connect_clicked => WebWindowControlBarInput::EnterTitleEditMode,
+                    }
+                },
 
-            #[name(action_menu_button)]
-            gtk::MenuButton{
-                add_css_class: "circular",
-                add_css_class: "flat",
-                set_icon_name: "menu",
-                set_tooltip_text: Some("Actions"),
-                #[wrap(Some)]
-                set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
-            },
+                #[name(action_menu_button)]
+                gtk::MenuButton{
+                    add_css_class: "circular",
+                    add_css_class: "flat",
+                    set_icon_name: "menu",
+                    set_tooltip_text: Some("Actions"),
+                    #[wrap(Some)]
+                    set_popover = &gtk::PopoverMenu::from_model(Some(&action_menu)),
+                },
 
-            #[name(close_btn)]
-            gtk::Button {
-                add_css_class: "circular",
-                add_css_class: "flat",
-                add_css_class: "toolbar-button",
-                set_icon_name: "cross",
-                set_tooltip_text: Some("Close"),
-                connect_clicked => WebWindowControlBarInput::Close,
+                #[name(close_btn)]
+                gtk::Button {
+                    add_css_class: "circular",
+                    add_css_class: "flat",
+                    add_css_class: "toolbar-button",
+                    set_icon_name: "cross",
+                    set_tooltip_text: Some("Close"),
+                    connect_clicked => WebWindowControlBarInput::Close,
+                }
             }
         }
     }
 
     menu! {
         action_menu: {
+            "Back" => BackAction,
+            "Forward" => ForwardAction,
+            "Refresh" => RefreshAction,
             "Screenshot" => ScreenshotAction,
             "Focus" => FocusAction,
             "Copy Link" => CopyLinkAction,
@@ -156,17 +183,35 @@ impl FactoryComponent for WebWindowControlBar {
                 WebWindowControlBarInput::Screenshot => self
                     .webwindow
                     .sender()
-                    .send(WebWindowInput::Screenshot)
+                    .send(WebWindowInput::Screenshot(true, webkit6::SnapshotRegion::Visible))
                     .expect("Could not send WebWindowInput::Screenshot to WebWindow"),
                 WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
-                WebWindowControlBarInput::ReturnToMainAppWindow => {
-                    let _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow);
-                }
-                WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward)) => {
+                WebWindowControlBarInput::ReturnToMainAppWindow => _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow),
+                WebWindowControlBarInput::LoadChanged(can_go_back, can_go_forward, url) => {
                     self.web_view_can_go_back = can_go_back;
                     self.web_view_can_go_forward = can_go_forward;
+                    self.url = url;
                 }
-                WebWindowControlBarInput::TitleChanged(title) => self.label = title,
+                WebWindowControlBarInput::EnterTitleEditMode => {
+                    self.title_edit_textbuffer.set_text(self.url.clone());
+                    self.in_title_edit_mode = true;
+                    widgets.title_edit_entry.grab_focus();
+                }
+                WebWindowControlBarInput::LeaveTitleEditMode => {
+                    let input = self.title_edit_textbuffer.text().to_string();
+                    self.title_edit_textbuffer.set_text("");
+                    self.in_title_edit_mode = false;
+                    let url = match process_url(input.clone()) {
+                        Some(url) => url,
+                        None => self.url.clone(),
+                    };
+                    if url != self.url {
+                        self.label = input;
+                        self.url = url.clone();
+                    }
+                    _ = self.webwindow.sender().send(WebWindowInput::SetUrl(url));
+                }
+                WebWindowControlBarInput::TitleChanged(title, url) => {self.label = title; self.url = url;},
                 WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(
                     user_content_filter_store,
                 ) => self
@@ -177,13 +222,9 @@ impl FactoryComponent for WebWindowControlBar {
                     ))
                     .expect("Could not send WebWindowInput::RetroactivelyLoadUserContentFilter to WebWindow"),
                 WebWindowControlBarInput::ReturnToMainAppWindow => sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow).expect("Could not send output WebWindowControlBarOutput::ReturnToMainAppWindow"),
-                WebWindowControlBarInput::CopyLink => {
-                    let clipboard = widgets.action_menu_button.clipboard();
-                    if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(&gtk::glib::Value::from(if let Some(uri)=self.webwindow.widgets().web_view.uri() {uri.to_string()} else {String::from("")})))) {
-                        eprintln!("Could not copy link to clipboard");
-                    }
-                }
-    }
+                WebWindowControlBarInput::CopyLink => _ = self.webwindow.sender().send(WebWindowInput::CopyLink)
+        }
+        self.update_view(widgets, sender);
     }
 
     fn init_model(init: Self::Init, index: &Self::Index, sender: FactorySender<Self>) -> Self {
@@ -191,11 +232,11 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindow::builder()
                 .launch(init.clone())
                 .forward(sender.input_sender(), |message| match message {
-                    WebWindowOutput::LoadChanged((can_go_back, can_go_forward)) => {
-                        WebWindowControlBarInput::LoadChanged((can_go_back, can_go_forward))
+                    WebWindowOutput::LoadChanged(can_go_back, can_go_forward, url) => {
+                        WebWindowControlBarInput::LoadChanged(can_go_back, can_go_forward, url)
                     }
-                    WebWindowOutput::TitleChanged(title) => {
-                        WebWindowControlBarInput::TitleChanged(title)
+                    WebWindowOutput::TitleChanged(title, url) => {
+                        WebWindowControlBarInput::TitleChanged(title, url)
                     }
                     WebWindowOutput::Close => WebWindowControlBarInput::Close,
                     WebWindowOutput::ReturnToMainAppWindow => {
@@ -204,10 +245,13 @@ impl FactoryComponent for WebWindowControlBar {
                 });
         Self {
             id: index.clone(),
-            label: init.0,
+            label: init.0.clone(),
+            url: init.0,
             webwindow: new_webwindow,
             web_view_can_go_back: false,
             web_view_can_go_forward: false,
+            in_title_edit_mode: false,
+            title_edit_textbuffer: gtk::EntryBuffer::new(Some("")),
         }
     }
 
@@ -218,6 +262,21 @@ impl FactoryComponent for WebWindowControlBar {
         returned_widget: &<Self::ParentWidget as relm4::factory::FactoryView>::ReturnedWidget,
         sender: FactorySender<Self>,
     ) -> Self::Widgets {
+        let back_action: RelmAction<BackAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowControlBarInput::Back);
+            }))
+        };
+        let forward_action: RelmAction<ForwardAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowControlBarInput::Forward);
+            }))
+        };
+        let refresh_action: RelmAction<RefreshAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowControlBarInput::Refresh);
+            }))
+        };
         let screenshot_action: RelmAction<ScreenshotAction> = {
             RelmAction::new_stateless(clone!(@strong sender => move |_| {
                 sender.input(WebWindowControlBarInput::Screenshot);
@@ -238,6 +297,9 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindowControlBarActionGroup,
         > = RelmActionGroup::new();
 
+        webwindow_control_bar_action_group.add_action(back_action);
+        webwindow_control_bar_action_group.add_action(forward_action);
+        webwindow_control_bar_action_group.add_action(refresh_action);
         webwindow_control_bar_action_group.add_action(screenshot_action);
         webwindow_control_bar_action_group.add_action(focus_action);
         webwindow_control_bar_action_group.add_action(copy_link_action);
@@ -246,12 +308,13 @@ impl FactoryComponent for WebWindowControlBar {
         let widgets = view_output!();
 
         Self::Widgets {
-            back_btn: widgets.back_btn,
-            forward_btn: widgets.forward_btn,
-            refresh_btn: widgets.refresh_btn,
             label: widgets.label,
             action_menu_button: widgets.action_menu_button,
             close_btn: widgets.close_btn,
+            title_edit_entry: widgets.title_edit_entry,
+            title_button: widgets.title_button,
+            padlock_image: widgets.padlock_image,
+            title_label: widgets.title_label,
         }
     }
 }

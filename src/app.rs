@@ -129,10 +129,16 @@ impl Component for App {
                         gtk::Box {
                             set_orientation: gtk::Orientation::Vertical,
 
-                            #[local_ref]
-                            webwindowcontrolbar_box -> gtk::Box {
-                                set_orientation: gtk::Orientation::Vertical,
-                                set_spacing: 0,
+                            adw::Clamp {
+                                set_maximum_size: 400,
+                                #[local_ref]
+                                webwindowcontrolbar_box -> gtk::Box {
+                                    set_orientation: gtk::Orientation::Vertical,
+                                    set_spacing: 0,
+                                    set_hexpand: true,
+                                    set_margin_start: 5,
+                                    set_margin_end: 5,
+                                }
                             }
                         }
                     }
@@ -381,14 +387,13 @@ impl Component for App {
             }
 
             AppInput::FocusUrlEntry => {
-                println!("focus");
                 widgets.url_entry.grab_focus();
             }
         }
     }
 }
 
-fn process_url(mut url: String) -> Option<String> {
+pub fn process_url(mut url: String) -> Option<String> {
     if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("webkit://") {
     } else if url.contains(" ") || !url.contains(".") {
         url = String::from(url.trim());

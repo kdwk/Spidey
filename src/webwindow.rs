@@ -11,17 +11,22 @@ use relm4::{
     actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup},
     adw::prelude::*,
     gtk::{
+        gdk::ContentProvider,
         glib::clone,
         prelude::{WidgetExt, *},
         EventControllerMotion,
     },
     prelude::*,
 };
+use tracing_subscriber::fmt::format::Full;
 use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
 use webkit6_sys::webkit_web_view_get_settings;
 
-use crate::config::{APP_ID, PROFILE};
 use crate::smallwebwindow::*;
+use crate::{
+    app::process_url,
+    config::{APP_ID, PROFILE},
+};
 use crate::{
     document::{
         with, Create, Document, FileSystemEntity,
@@ -38,36 +43,56 @@ use crate::{
 #[tracker::track]
 pub struct WebWindow {
     pub url: String,
+    title: String,
     screenshot_flash_box: gtk::Box,
     can_go_back: bool,
     can_go_forward: bool,
+    go_back_now: bool,
+    go_forward_now: bool,
+    refresh_now: bool,
+    fullscreen: bool,
+    in_title_edit_mode: bool,
+    title_edit_textbuffer: gtk::EntryBuffer,
+    show_headerbar: bool,
 }
 
 #[derive(Debug)]
 pub enum WebWindowInput {
     Back,
     Forward,
+    Refresh,
+    CopyLink,
+    SetUrl(String),
     CreateSmallWebWindow(webkit6::WebView),
-    TitleChanged(String),
-    LoadChanged(bool, bool),
+    TitleChanged(String, String),
+    LoadChanged(bool, bool, String),
     InsecureContentDetected,
-    Screenshot,
+    Screenshot(bool, webkit6::SnapshotRegion),
     BeginScreenshotFlash,
     ScreenshotFlashFinished,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
     ReturnToMainAppWindow,
+    EnterTitleEditMode,
+    LeaveTitleEditMode,
     ShowHeaderBar,
     HideHeaderBar,
+    ToggleFullscreen,
 }
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
-    LoadChanged((bool, bool)),
-    TitleChanged(String),
+    LoadChanged(bool, bool, String),
+    TitleChanged(String, String),
     ReturnToMainAppWindow,
     Close,
 }
 
+relm4::new_action_group!(WebWindowActionGroup, "webwindow");
+relm4::new_stateless_action!(
+    FullPageScreenshotAction,
+    WebWindowActionGroup,
+    "fullpage-screenshot"
+);
 #[relm4::component(pub)]
 impl Component for WebWindow {
     type Init = (String, Option<webkit6::UserContentFilterStore>);
@@ -89,14 +114,22 @@ impl Component for WebWindow {
                     add_overlay = &adw::ToolbarView {
                         set_halign: gtk::Align::Fill,
                         set_valign: gtk::Align::Start,
-                        set_top_bar_style: adw::ToolbarStyle::Raised,
-                        set_reveal_top_bars: false,
+                        set_top_bar_style: adw::ToolbarStyle::RaisedBorder,
+                        #[track = "model.changed(WebWindow::show_headerbar())"]
+                        set_reveal_top_bars: model.show_headerbar,
 
                         #[name(headerbar)]
                         add_top_bar = &adw::HeaderBar {
+                            #[track = "model.changed(WebWindow::fullscreen())"]
+                            set_decoration_layout: if model.fullscreen {
+                                Some(":")
+                            } else {
+                                Some(":close")
+                            },
+                            add_css_class: "undershoot-top",
+
                             pack_start = &gtk::Box {
                                 set_orientation: gtk::Orientation::Horizontal,
-                                add_css_class: "webwindow-headerbar",
 
                                 #[name(back_btn)]
                                 gtk::Button {
@@ -114,8 +147,114 @@ impl Component for WebWindow {
                                     #[track = "model.changed(WebWindow::can_go_forward())"]
                                     set_sensitive: model.can_go_forward,
                                     connect_clicked => WebWindowInput::Forward,
+                                },
+
+                                #[name(refresh_btn)]
+                                gtk::Button {
+                                    set_icon_name: "refresh",
+                                    set_tooltip_text: Some("Refresh"),
+                                    connect_clicked => WebWindowInput::Refresh,
+                                },
+
+                                #[name(screenshot_btn)]
+                                adw::SplitButton {
+                                    set_icon_name: "screenshooter",
+                                    set_tooltip_text: Some("Take a screenshot"),
+                                    connect_clicked => WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::Visible),
+                                    #[wrap(Some)]
+                                    set_popover = &gtk::PopoverMenu::from_model(Some(&screenshot_menu)),
                                 }
                             },
+                            #[wrap(Some)]
+                            set_title_widget = &adw::Clamp {
+                                set_maximum_size: 300,
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+
+                                    if model.in_title_edit_mode {
+                                        #[name(title_edit_entry)]
+                                        gtk::Entry {
+                                            set_margin_start: 24,
+                                            set_width_request: 300,
+                                            #[track = "model.changed(WebWindow::in_title_edit_mode())"]
+                                            grab_focus: (),
+                                            #[track = "model.changed(WebWindow::url())"]
+                                            set_buffer: &model.title_edit_textbuffer,
+                                            set_placeholder_text: Some("Search the web or enter a link"),
+                                            set_input_purpose: gtk::InputPurpose::Url,
+                                            set_input_hints: gtk::InputHints::NO_SPELLCHECK,
+                                            set_icon_from_icon_name: (gtk::EntryIconPosition::Secondary, Some("arrow3-right-symbolic")),
+                                            set_icon_tooltip_text: (gtk::EntryIconPosition::Secondary, Some("Go")),
+                                            connect_activate => WebWindowInput::LeaveTitleEditMode,
+                                            connect_icon_press[sender] => move |_this_entry, icon_position| {
+                                                if let gtk::EntryIconPosition::Secondary = icon_position {
+                                                    sender.input(WebWindowInput::LeaveTitleEditMode);
+                                                }
+                                            },
+                                        }
+                                    } else {
+                                        gtk::Button {
+                                            set_margin_start: 24,
+                                            set_width_request: 300,
+                                            set_can_shrink: true,
+                                            set_tooltip_text: Some("Click to enter link or search"),
+
+                                            #[wrap(Some)]
+                                            set_child = &gtk::Box {
+                                                set_orientation: gtk::Orientation::Horizontal,
+                                                set_halign: gtk::Align::Center,
+                                                #[name(padlock_image)]
+                                                gtk::Image {
+                                                    #[track = "model.changed(WebWindow::url())"]
+                                                    set_from_icon_name: if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
+                                                        Some("padlock2")
+                                                    } else if model.url.starts_with("http://") {
+                                                        Some("padlock2-open")
+                                                    } else {None},
+                                                },
+
+                                                gtk::Label {
+                                                    set_margin_start: 7,
+                                                    #[track = "model.changed(WebWindow::title())"]
+                                                    set_label: model.title.as_str()
+                                                }
+                                            },
+
+                                            connect_clicked => WebWindowInput::EnterTitleEditMode,
+                                        }
+                                    },
+
+                                    gtk::Button {
+                                        set_icon_name: "copy",
+                                        set_tooltip_text: Some("Copy link"),
+                                        add_css_class: "flat",
+                                        connect_clicked => WebWindowInput::CopyLink,
+                                    }
+                                }
+                            },
+
+                            pack_end = &gtk::Box {
+                                set_orientation: gtk::Orientation::Horizontal,
+
+                                gtk::Button {
+                                    set_icon_name: "move-to-window",
+                                    set_tooltip_text: Some("Return to main window"),
+                                    connect_clicked => WebWindowInput::ReturnToMainAppWindow,
+                                },
+
+                                #[name(toggle_fullscreen_btn)]
+                                gtk::Button {
+                                    #[track = "model.changed(WebWindow::fullscreen())"]
+                                    set_icon_name: if model.fullscreen {
+                                        "arrows-pointing-inward"
+                                    } else {
+                                        "arrows-pointing-outward"
+                                    },
+                                    set_tooltip_text: Some("Toggle fullscreen"),
+                                    connect_clicked => WebWindowInput::ToggleFullscreen,
+                                }
+                            }
                         },
                     },
 
@@ -129,16 +268,33 @@ impl Component for WebWindow {
                     #[name(web_view)]
                     webkit6::WebView {
                         set_vexpand: true,
+                        #[track = "model.changed(WebWindow::url())"]
                         load_uri: model.url.as_str(),
+                        #[track = "model.changed(WebWindow::go_back_now())"]
+                        go_back: (),
+                        #[track = "model.changed(WebWindow::go_forward_now())"]
+                        go_forward: (),
+                        #[track = "model.changed(WebWindow::refresh_now())"]
+                        reload: (),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
-                            sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
-                            // sender.output(WebWindowOutput::LoadChanged((this_webview.can_go_back(), this_webview.can_go_forward()))).expect("Could not send output WebWindowOutput::LoadChanged");
+                            let url = match this_webview.uri() {
+                                Some(url) => url,
+                                None => GString::new()
+                            };
+                            sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward(), url.clone().to_string()));
                         },
                         connect_title_notify[sender] => move |this_webview| {
                             let title = this_webview.title().map(|title| ToString::to_string(&title));
-                            sender.input(WebWindowInput::TitleChanged(match title {
+                            let url = match this_webview.uri() {
+                                Some(url) => url,
+                                None => GString::new()
+                            };
+                            sender.input(WebWindowInput::TitleChanged(match title.clone() {
                                 Some(text) => text,
                                 None => String::from("")
+                            }, match this_webview.uri() {
+                                Some(url) => url.to_string(),
+                                None => "".to_string()
                             }));
                         },
                         connect_insecure_content_detected[sender] => move |_, _| {
@@ -166,6 +322,12 @@ impl Component for WebWindow {
         }
     }
 
+    menu! {
+        screenshot_menu: {
+            "Take screenshot of full page" => FullPageScreenshotAction,
+        }
+    }
+
     fn init(
         init: Self::Init,
         root: Self::Root,
@@ -179,13 +341,41 @@ impl Component for WebWindow {
             .build();
         screenshot_flash_box.add_css_class("screenshot-in-progress");
         let model = WebWindow {
-            url: init.0,
+            url: init.0.clone(),
             screenshot_flash_box,
             can_go_back: false,
             can_go_forward: false,
+            go_back_now: false,
+            go_forward_now: false,
+            refresh_now: false,
+            show_headerbar: false,
+            title: init.0,
+            in_title_edit_mode: false,
+            title_edit_textbuffer: gtk::EntryBuffer::new(Some("")),
+            fullscreen: false,
             tracker: 0,
         };
         let widgets = view_output!();
+        widgets.padlock_image.set_icon_name(
+            if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
+                Some("padlock2")
+            } else if model.url.starts_with("http://") {
+                Some("padlock2-open")
+            } else {
+                None
+            },
+        );
+
+        let fullpage_screenshot_action: RelmAction<FullPageScreenshotAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::FullDocument));
+            }))
+        };
+        let mut webwindow_action_group: RelmActionGroup<WebWindowActionGroup> =
+            RelmActionGroup::new();
+        webwindow_action_group.add_action(fullpage_screenshot_action);
+        webwindow_action_group.register_for_widget(root);
+
         // Make the main app be aware of this new window so it doesn't quit when main window is closed
         // relm4::main_adw_application().add_window(&Self::builder().root);
         let show_toolbars_event_controller = EventControllerMotion::new();
@@ -280,7 +470,6 @@ impl Component for WebWindow {
                             d["cookies.sqlite"].path().as_str(),
                             webkit6::CookiePersistentStorage::Sqlite,
                         );
-                        Ok(())
                     },
                 );
             }
@@ -302,8 +491,25 @@ impl Component for WebWindow {
         self.reset();
         let sender_clone = sender.clone();
         match message {
-            WebWindowInput::Back => widgets.web_view.go_back(),
-            WebWindowInput::Forward => widgets.web_view.go_forward(),
+            WebWindowInput::Back => self.set_go_back_now(!self.go_back_now),
+            WebWindowInput::Forward => self.set_go_forward_now(!self.go_forward_now),
+            WebWindowInput::Refresh => self.set_refresh_now(!self.refresh_now),
+            WebWindowInput::CopyLink => {
+                let clipboard = widgets.web_view.clipboard();
+                if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(
+                    &gtk::glib::Value::from(if let Some(uri) = widgets.web_view.uri() {
+                        uri.to_string()
+                    } else {
+                        String::from("")
+                    }),
+                ))) {
+                    eprintln!("Could not copy link to clipboard");
+                }
+                widgets
+                    .toast_overlay
+                    .add_toast(adw::Toast::new("Copied link to clipboard"));
+            }
+            WebWindowInput::SetUrl(url) => self.set_url(url),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
                 let height_over_width =
                     widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
@@ -343,22 +549,48 @@ impl Component for WebWindow {
                     )
                 }
             }
-            WebWindowInput::TitleChanged(title) => {
-                widgets.web_window.set_title(Some(title.as_str()));
+            WebWindowInput::TitleChanged(title, url) => {
+                self.set_url(url.clone());
+                self.title_edit_textbuffer.set_text(url.clone());
+                self.set_title(title.clone());
                 sender
-                    .output(WebWindowOutput::TitleChanged(title))
+                    .output(WebWindowOutput::TitleChanged(title, url))
                     .expect("Could not send output WebWindowOutput::TitleChanged");
             }
-            WebWindowInput::LoadChanged(can_go_back, can_go_forward) => {
+            WebWindowInput::EnterTitleEditMode => {
+                self.title_edit_textbuffer.set_text(self.url.clone());
+                self.set_in_title_edit_mode(true);
+            }
+            WebWindowInput::LeaveTitleEditMode => {
+                let input = self.title_edit_textbuffer.text().to_string();
+                self.title_edit_textbuffer.set_text("");
+                self.set_in_title_edit_mode(false);
+                let url = match process_url(input.clone()) {
+                    Some(url) => url,
+                    None => self.url.clone(),
+                };
+                if url != self.url {
+                    self.set_title(input);
+                    self.set_url(url)
+                }
+            }
+            WebWindowInput::LoadChanged(can_go_back, can_go_forward, url) => {
                 self.set_can_go_back(can_go_back);
                 self.set_can_go_forward(can_go_forward);
+                self.set_url(url.clone());
+                self.title_edit_textbuffer.set_text(url.clone());
+                _ = sender.output(WebWindowOutput::LoadChanged(
+                    can_go_back,
+                    can_go_forward,
+                    url,
+                ));
             }
             WebWindowInput::InsecureContentDetected => widgets
                 .toast_overlay
                 .add_toast(adw::Toast::new("This page is insecure")),
-            WebWindowInput::Screenshot => {
+            WebWindowInput::Screenshot(need_return_main_app, snapshot_region) => {
                 widgets.web_view.snapshot(
-                    webkit6::SnapshotRegion::Visible,
+                    snapshot_region,
                     webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
                     gtk::gio::Cancellable::NONE,
                     clone!(@strong widgets.web_window as web_window, @strong widgets.toast_overlay as toast_overlay => move |snapshot_result| match snapshot_result {
@@ -370,11 +602,13 @@ impl Component for WebWindow {
                                 tokio::time::sleep(Duration::from_millis(300)).await; // Wait for 300ms for the WebWindow to be in focus
                                 sender.input(WebWindowInput::BeginScreenshotFlash); // Add the screenshot flash box to the main_overlay of the WebWindow
                                 tokio::time::sleep(Duration::from_millis(830)).await; // Wait for the animation to finish
-                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remoe the screenshot flash box
-                                tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
-                                sender // Return focus back to main app window
-                                    .output(WebWindowOutput::ReturnToMainAppWindow)
-                                    .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
+                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remove the screenshot flash box
+                                if need_return_main_app {
+                                    tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
+                                    sender // Return focus back to main app window
+                                        .output(WebWindowOutput::ReturnToMainAppWindow)
+                                        .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
+                                }
                             }));
                             with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
                                 |mut d| {
@@ -412,8 +646,17 @@ impl Component for WebWindow {
             WebWindowInput::ReturnToMainAppWindow => sender
                 .output(WebWindowOutput::ReturnToMainAppWindow)
                 .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
-            WebWindowInput::ShowHeaderBar => widgets.toolbar_view.set_reveal_top_bars(true),
-            WebWindowInput::HideHeaderBar => widgets.toolbar_view.set_reveal_top_bars(false),
+            WebWindowInput::ShowHeaderBar => self.set_show_headerbar(true),
+            WebWindowInput::HideHeaderBar => self.set_show_headerbar(false),
+            WebWindowInput::ToggleFullscreen => {
+                if widgets.web_window.is_fullscreen() {
+                    widgets.web_window.unfullscreen();
+                    self.set_fullscreen(false);
+                } else {
+                    widgets.web_window.fullscreen();
+                    self.set_fullscreen(true);
+                }
+            }
         }
         self.update_view(widgets, sender_clone);
     }
