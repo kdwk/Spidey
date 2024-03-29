@@ -175,7 +175,7 @@ impl FactoryComponent for WebWindowControlBar {
                     ))
                     .expect("Could not send WebWindowInput::RetroactivelyLoadUserContentFilter to WebWindow"),
                 WebWindowControlBarInput::ReturnToMainAppWindow => sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow).expect("Could not send output WebWindowControlBarOutput::ReturnToMainAppWindow"),
-                WebWindowControlBarInput::CopyLink => _ = self.webwindow.sender().send(WebWindowInput::CopyUrl)
+                WebWindowControlBarInput::CopyLink => _ = self.webwindow.sender().send(WebWindowInput::CopyLink)
         }
         self.update_view(widgets, sender);
     }
