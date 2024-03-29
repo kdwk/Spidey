@@ -129,10 +129,16 @@ impl Component for App {
                         gtk::Box {
                             set_orientation: gtk::Orientation::Vertical,
 
-                            #[local_ref]
-                            webwindowcontrolbar_box -> gtk::Box {
-                                set_orientation: gtk::Orientation::Vertical,
-                                set_spacing: 0,
+                            adw::Clamp {
+                                set_maximum_size: 400,
+                                #[local_ref]
+                                webwindowcontrolbar_box -> gtk::Box {
+                                    set_orientation: gtk::Orientation::Vertical,
+                                    set_spacing: 0,
+                                    set_hexpand: true,
+                                    set_margin_start: 5,
+                                    set_margin_end: 5,
+                                }
                             }
                         }
                     }
