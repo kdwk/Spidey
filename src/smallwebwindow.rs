@@ -20,13 +20,13 @@ impl SimpleComponent for SmallWebWindow {
 
     view! {
         #[name(small_web_window)]
-        adw::Window {
-            set_default_width: model.width_height.0,
-            set_default_height: model.width_height.1,
-            set_modal: true,
-            set_title: Some(""),
+        adw::Dialog {
+            set_title: "",
+            set_content_height: init.1.0,
+            set_content_width: init.1.1,
 
-            gtk::Box {
+            #[wrap(Some)]
+            set_child = &gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
 
                 adw::HeaderBar {
@@ -36,8 +36,6 @@ impl SimpleComponent for SmallWebWindow {
 
                 model.web_view.clone(),
             },
-
-            present: ()
         }
     }
 

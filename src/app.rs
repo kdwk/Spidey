@@ -257,8 +257,7 @@ impl Component for App {
             }
 
             AppInput::ShowAboutWindow => {
-                adw::AboutWindow::builder()
-                    .transient_for(root)
+                adw::AboutDialog::builder()
                     .application_icon(if PROFILE == "Devel" {
                         "com.github.kdwk.Spidey.Devel"
                     } else {
@@ -269,9 +268,9 @@ impl Component for App {
                     .comments("World Wide Web-crawler")
                     .website("https://github.com/kdwk/Spidey")
                     .issue_url("https://github.com/kdwk/Spidey/issues")
-                    .copyright("© 2023 Kendrew Leung")
+                    .copyright("© 2024 Kendrew Leung")
                     .build()
-                    .present();
+                    .present(root);
             }
 
             AppInput::SetUpUserContentFilterStore => {

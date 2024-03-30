@@ -3,6 +3,7 @@
 use std::{
     error::Error,
     process::Command,
+    str::FromStr,
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
@@ -19,7 +20,12 @@ use relm4::{
     prelude::*,
 };
 use tracing_subscriber::fmt::format::Full;
-use webkit6::{gio::SimpleAction, glib::GString, prelude::*};
+use webkit6::{
+    gdk::RGBA,
+    gio::SimpleAction,
+    glib::{GString, Variant},
+    prelude::*,
+};
 use webkit6_sys::webkit_web_view_get_settings;
 
 use crate::smallwebwindow::*;
@@ -39,6 +45,18 @@ use crate::{
     recipe::{Discard, Log, Pass, Pipe, Recipe, Runnable, Step},
     whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
+
+fn match_style_with_rgb(main_app: adw::Application) -> RGBA {
+    match main_app.style_manager().color_scheme() {
+        adw::ColorScheme::Default
+        | adw::ColorScheme::ForceLight
+        | adw::ColorScheme::PreferLight => RGBA::new(0.949019608, 0.949019608, 0.949019608, 1.0),
+        adw::ColorScheme::ForceDark | adw::ColorScheme::PreferDark => {
+            RGBA::new(0.164705882, 0.164705882, 0.164705882, 1.0)
+        }
+        _ => RGBA::new(0.949019608, 0.949019608, 0.949019608, 1.0),
+    }
+}
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct Inhibited {
@@ -111,6 +129,7 @@ pub enum WebWindowInput {
     TogglePinHeaderBar,
     InhibitHideHeaderBar,
     ReleaseHideHeaderBar,
+    Peek(String),
 }
 
 #[derive(Debug)]
@@ -145,6 +164,7 @@ relm4::new_stateless_action!(
     WebWindowActionGroup,
     "fullpage-screenshot"
 );
+relm4::new_stateful_action!(PeekAction, WebWindowActionGroup, "peek", String, ());
 #[relm4::component(pub)]
 impl Component for WebWindow {
     type Init = (String, Option<webkit6::UserContentFilterStore>);
@@ -353,6 +373,7 @@ impl Component for WebWindow {
                         go_forward: (),
                         #[track = "model.changed(WebWindow::refresh_now())"]
                         reload: (),
+                        set_background_color: &match_style_with_rgb(relm4::main_adw_application()),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
                             let url = match this_webview.uri() {
                                 Some(url) => url,
@@ -386,6 +407,16 @@ impl Component for WebWindow {
                             new_webview.into()
 
                         },
+                        // connect_context_menu[sender] => move |_this_webview, context_menu, context| {
+                        //     if context.context_is_link() {
+                        //         let link = context.link_uri();
+                        //         if let Some(link) = link {
+                        //             let link_string = link.to_string();
+                        //             context_menu.prepend(&webkit6::ContextMenuItem::from_gaction(peek_action.gio_action(), "Peek", Some(link_string).into()));
+                        //         }
+                        //     }
+                        //     false
+                        // }
                     },
                 }
             },
@@ -434,7 +465,26 @@ impl Component for WebWindow {
             pin_headerbar: false,
             tracker: 0,
         };
+
+        let fullpage_screenshot_action: RelmAction<FullPageScreenshotAction> = {
+            RelmAction::new_stateless(clone!(@strong sender => move |_| {
+                sender.input(WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::FullDocument));
+            }))
+        };
+        let peek_action: RelmAction<PeekAction> = RelmAction::new_stateful_with_target_value(
+            &(),
+            clone!(@strong sender => move |_, _, url| {
+                sender.input(WebWindowInput::Peek(url));
+            }),
+        );
+        let mut webwindow_action_group: RelmActionGroup<WebWindowActionGroup> =
+            RelmActionGroup::new();
+        webwindow_action_group.add_action(fullpage_screenshot_action);
+        // webwindow_action_group.add_action(peek_action);
+        webwindow_action_group.register_for_widget(root.clone());
+
         let widgets = view_output!();
+
         widgets.padlock_image.set_icon_name(
             if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
                 Some("padlock2")
@@ -444,17 +494,6 @@ impl Component for WebWindow {
                 None
             },
         );
-
-        let fullpage_screenshot_action: RelmAction<FullPageScreenshotAction> = {
-            RelmAction::new_stateless(clone!(@strong sender => move |_| {
-                sender.input(WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::FullDocument));
-            }))
-        };
-        let mut webwindow_action_group: RelmActionGroup<WebWindowActionGroup> =
-            RelmActionGroup::new();
-        webwindow_action_group.add_action(fullpage_screenshot_action);
-        webwindow_action_group.register_for_widget(root);
-
         // Make the main app be aware of this new window so it doesn't quit when main window is closed
         // relm4::main_adw_application().add_window(&Self::builder().root);
         let show_toolbars_event_controller = EventControllerMotion::new();
@@ -590,13 +629,9 @@ impl Component for WebWindow {
             }
             WebWindowInput::SetUrl(url) => self.set_url(url),
             WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                let height_over_width =
-                    widgets.web_window.height() as f32 / widgets.web_window.width() as f32;
-                let smallwebwindow_width = widgets.web_window.width() / 2;
-                let smallwebwindow_height =
-                    (smallwebwindow_width as f32 * height_over_width + 100.0) as i32;
+                let smallwebwindow_width = widgets.web_window.width() - 100;
+                let smallwebwindow_height = widgets.web_window.height() - 100;
                 let smallwebwindow = SmallWebWindow::builder()
-                    .transient_for(root)
                     .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
                     .detach();
                 let small_web_window_widget = smallwebwindow.widgets().small_web_window.clone();
@@ -606,7 +641,7 @@ impl Component for WebWindow {
                             .title()
                             .map(|title| ToString::to_string(&title));
                         small_web_window_widget
-                            .set_title(Some(title.unwrap_or(String::from("")).as_str()));
+                            .set_title(title.unwrap_or(String::from("")).as_str());
                     }),
                 );
                 smallwebwindow.model().web_view.connect_close(
@@ -614,6 +649,7 @@ impl Component for WebWindow {
                         small_web_window_widget.close();
                     }),
                 );
+                small_web_window_widget.present(root);
             }
             WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
                 if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
@@ -762,6 +798,9 @@ impl Component for WebWindow {
                     self.set_pin_headerbar(true);
                     sender.input(WebWindowInput::InhibitHideHeaderBar);
                 }
+            }
+            WebWindowInput::Peek(url) => {
+                println!("{url}");
             }
         }
         self.update_view(widgets, sender_clone);
