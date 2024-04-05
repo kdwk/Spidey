@@ -23,7 +23,7 @@ directories = "5.0.1"
 chrono = {version="0.4.37", features = ["clock"]}
 tokio = {version="1.35.0", features=["time"]}
 reqwest = {version="0.12.1", features = ["blocking"]}
-ashpd = "0.8.0"
+ashpd = "0.8.1"
 open = "5.1.2"
 extend = "1.2.0"
 tracker = "0.2.1"
