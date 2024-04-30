@@ -9,11 +9,14 @@ Your friendly neighbourhood world wide web-crawler is here to re-imagine how you
 ## Get Spidey
 ### Pre-built pre-release
 1. Sign in to GitHub
-2. Go to Actions
-3. Click on the latest passing pipeline
-4. Download the build artifact
-5. Open the downloaded Flatpak file
-6. Open the Flatpak file and click "Install"
+2. Download the latest Nightly build [here](https://nightly.link/kdwk/Spidey/workflows/ci/main/spidey-x86_64.zip) (branch `main`, architecture `x86_64`)
+3. Open the downloaded Flatpak file
+4. Click "Install"
+   
+OR
+
+3. Open Terminal and navigate to the directory to which the Flatpak file is downloaded
+4. Run `flatpak install --user spidey.flatpak`
 
 ### Build from source
 1. Install [Builder](https://apps.gnome.org/Builder/) from Software
