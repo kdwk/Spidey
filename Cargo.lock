@@ -2071,9 +2071,9 @@ dependencies = [
 
 [[package]]
 name = "relm4-icons"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8603f50e9ed5ca2e3759a9c6033e4058c7b984f1bd22b1fc3b1a162c5612eb64"
+checksum = "d5738f52d978a211bd4b3ec3b37f1593297ad34f0f1789d8115eabe1df7958a8"
 dependencies = [
  "gtk4",
  "gvdb",
