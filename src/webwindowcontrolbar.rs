@@ -36,8 +36,9 @@ pub enum WebWindowControlBarInput {
     Screenshot,
     ReturnToMainAppWindow,
     RetroactivelyLoadUserContentFilter(webkit6::UserContentFilterStore),
-    LoadChanged(bool, bool, String),
-    TitleChanged(String, String),
+    UrlChanged(String),
+    LoadChanged(bool, bool),
+    TitleChanged(String),
     CopyLink,
     EnterTitleEditMode,
     LeaveTitleEditMode,
@@ -178,11 +179,11 @@ impl FactoryComponent for WebWindowControlBar {
                     .expect("Could not send WebWindowInput::Screenshot to WebWindow"),
                 WebWindowControlBarInput::Focus => self.webwindow.widgets().web_window.present(),
                 WebWindowControlBarInput::ReturnToMainAppWindow => _ = sender.output(WebWindowControlBarOutput::ReturnToMainAppWindow),
-                WebWindowControlBarInput::LoadChanged(can_go_back, can_go_forward, url) => {
+                WebWindowControlBarInput::LoadChanged(can_go_back, can_go_forward) => {
                     self.web_view_can_go_back = can_go_back;
                     self.web_view_can_go_forward = can_go_forward;
-                    self.url = url;
                 }
+                WebWindowControlBarInput::UrlChanged(url) => self.url = url,
                 WebWindowControlBarInput::EnterTitleEditMode => {
                     self.title_edit_textbuffer.set_text(self.url.clone());
                     self.in_title_edit_mode = true;
@@ -200,9 +201,9 @@ impl FactoryComponent for WebWindowControlBar {
                         self.label = input;
                         self.url = url.clone();
                     }
-                    _ = self.webwindow.sender().send(WebWindowInput::SetUrl(url));
+                    _ = self.webwindow.sender().send(WebWindowInput::LoadUrl(url));
                 }
-                WebWindowControlBarInput::TitleChanged(title, url) => {self.label = title; self.url = url;},
+                WebWindowControlBarInput::TitleChanged(title) => self.label = title,
                 WebWindowControlBarInput::RetroactivelyLoadUserContentFilter(
                     user_content_filter_store,
                 ) => self
@@ -223,11 +224,12 @@ impl FactoryComponent for WebWindowControlBar {
             WebWindow::builder()
                 .launch(init.clone())
                 .forward(sender.input_sender(), |message| match message {
-                    WebWindowOutput::LoadChanged(can_go_back, can_go_forward, url) => {
-                        WebWindowControlBarInput::LoadChanged(can_go_back, can_go_forward, url)
+                    WebWindowOutput::LoadChanged(can_go_back, can_go_forward) => {
+                        WebWindowControlBarInput::LoadChanged(can_go_back, can_go_forward)
                     }
-                    WebWindowOutput::TitleChanged(title, url) => {
-                        WebWindowControlBarInput::TitleChanged(title, url)
+                    WebWindowOutput::UrlChanged(url) => WebWindowControlBarInput::UrlChanged(url),
+                    WebWindowOutput::TitleChanged(title) => {
+                        WebWindowControlBarInput::TitleChanged(title)
                     }
                     WebWindowOutput::Close => WebWindowControlBarInput::Close,
                     WebWindowOutput::ReturnToMainAppWindow => {

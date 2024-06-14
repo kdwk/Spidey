@@ -42,43 +42,31 @@ impl<T> IntoWhoops for Option<T> {
     }
 }
 
-pub fn attempt<Closure, Arg, Return>(closure: Closure) -> Closure
+// pub fn attempt_fn<Closure, Arg, Return>(closure: Closure) -> Closure
+// where
+//     Closure: Fn(Arg) -> Return,
+//     Return: IntoWhoops,
+// {
+//     closure
+// }
+
+pub fn attempt<Closure, Return>(closure: Closure) -> Whoops
 where
-    Closure: Fn(Arg) -> Return,
+    Closure: FnOnce() -> Return,
     Return: IntoWhoops,
 {
-    closure
+    closure().into_whoops()
 }
 
-pub trait Catch<Arg> {
-    fn catch<HandleErrorClosure, HandleErrorClosureReturn>(
-        self,
-        closure: HandleErrorClosure,
-    ) -> impl Fn(Arg) -> Whoops
-    where
-        HandleErrorClosure: Fn(&Box<dyn Error>) -> HandleErrorClosureReturn,
-        HandleErrorClosureReturn: IntoWhoops;
+pub trait Catch {
+    fn catch<HandleErrorClosure: Fn(Box<dyn Error>)>(self, closure: HandleErrorClosure);
 }
 
-impl<Closure, Arg, Return> Catch<Arg> for Closure
-where
-    Closure: FnOnce(Arg) -> Return + Clone,
-    Return: IntoWhoops,
-{
-    fn catch<HandleErrorClosure, HandleErrorClosureReturn>(
-        self,
-        closure: HandleErrorClosure,
-    ) -> impl Fn(Arg) -> Whoops
-    where
-        HandleErrorClosure: Fn(&Box<dyn Error>) -> HandleErrorClosureReturn,
-        HandleErrorClosureReturn: IntoWhoops,
-    {
-        move |arg| match self.clone()(arg).into_whoops() {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                closure(&error);
-                Err(error)
-            }
+impl Catch for Whoops {
+    fn catch<HandleErrorClosure: Fn(Box<dyn Error>)>(self, closure: HandleErrorClosure) {
+        match self {
+            Ok(_) => {}
+            Err(error) => closure(error),
         }
     }
 }
