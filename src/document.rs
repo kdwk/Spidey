@@ -587,8 +587,5 @@ where
             document_map.insert(document.clone().alias, document);
         }
     }
-    attempt(|closure: Closure| closure(Map(document_map.clone())))
-        .catch(|error| eprintln!("{error}"))
-        .run(closure)
-        .discard();
+    attempt(|| closure(Map(document_map))).catch(|error| eprintln!("{error}"))
 }

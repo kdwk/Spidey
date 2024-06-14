@@ -23,8 +23,9 @@ use tracing_subscriber::fmt::format::Full;
 use webkit6::{
     gdk::RGBA,
     gio::SimpleAction,
-    glib::{GString, Variant},
+    glib::{GString, Variant, VariantTy},
     prelude::*,
+    ContextMenuItem, WebView,
 };
 use webkit6_sys::webkit_web_view_get_settings;
 
@@ -87,21 +88,19 @@ impl Inhibited {
 }
 
 #[tracker::track]
+#[derive(Clone)]
 pub struct WebWindow {
-    pub url: String,
+    url: String,
     title: String,
     screenshot_flash_box: gtk::Box,
     can_go_back: bool,
     can_go_forward: bool,
-    go_back_now: bool,
-    go_forward_now: bool,
-    refresh_now: bool,
     fullscreen: bool,
     in_title_edit_mode: bool,
-    title_edit_textbuffer: gtk::EntryBuffer,
     can_hide_headerbar: Inhibited,
     pin_headerbar: bool,
     show_headerbar: bool,
+    web_view: Option<WebView>,
 }
 
 #[derive(Debug)]
@@ -110,10 +109,11 @@ pub enum WebWindowInput {
     Forward,
     Refresh,
     CopyLink,
-    SetUrl(String),
+    LoadUrl(String),
     CreateSmallWebWindow(webkit6::WebView),
-    TitleChanged(String, String),
-    LoadChanged(bool, bool, String),
+    TitleChanged(String),
+    UrlChanged(String),
+    NavigationHistoryChanged(bool, bool),
     InsecureContentDetected,
     Screenshot(bool, webkit6::SnapshotRegion),
     BeginScreenshotFlash,
@@ -134,28 +134,11 @@ pub enum WebWindowInput {
 
 #[derive(Debug)]
 pub enum WebWindowOutput {
-    LoadChanged(bool, bool, String),
-    TitleChanged(String, String),
+    LoadChanged(bool, bool),
+    UrlChanged(String),
+    TitleChanged(String),
     ReturnToMainAppWindow,
     Close,
-}
-
-trait OptionallyChangeCSSClasses {
-    fn optionally_add_css_class(&self, css_class: Option<&str>);
-    fn optionally_remove_css_class(&self, css_class: Option<&str>);
-}
-
-impl OptionallyChangeCSSClasses for gtk::Button {
-    fn optionally_add_css_class(&self, css_class: Option<&str>) {
-        if let Some(css_class) = css_class {
-            self.add_css_class(css_class);
-        }
-    }
-    fn optionally_remove_css_class(&self, css_class: Option<&str>) {
-        if let Some(css_class) = css_class {
-            self.remove_css_class(css_class);
-        }
-    }
 }
 
 relm4::new_action_group!(WebWindowActionGroup, "webwindow");
@@ -225,7 +208,7 @@ impl Component for WebWindow {
 
                                 #[name(refresh_btn)]
                                 gtk::Button {
-                                    set_icon_name: "refresh",
+                                    set_icon_name: "arrow-circular-top-right",
                                     set_tooltip_text: Some("Refresh"),
                                     connect_clicked => WebWindowInput::Refresh,
                                 },
@@ -256,8 +239,11 @@ impl Component for WebWindow {
                                             set_width_request: 350,
                                             #[track = "model.changed(WebWindow::in_title_edit_mode())"]
                                             grab_focus: (),
-                                            #[track = "model.changed(WebWindow::url())"]
-                                            set_buffer: &model.title_edit_textbuffer,
+                                            #[name(title_edit_entry_buffer)]
+                                            set_buffer = &gtk::EntryBuffer {
+                                                #[track = "model.changed(WebWindow::url())"]
+                                                set_text: model.url.clone(),
+                                            },
                                             set_placeholder_text: Some("Search the web or enter a link"),
                                             set_input_purpose: gtk::InputPurpose::Url,
                                             set_input_hints: gtk::InputHints::NO_SPELLCHECK,
@@ -324,11 +310,11 @@ impl Component for WebWindow {
                                         Some("Pin header bar")
                                     },
                                     #[track = "model.changed(WebWindow::pin_headerbar())"]
-                                    optionally_add_css_class: if model.pin_headerbar {
+                                    add_css_class?: if model.pin_headerbar {
                                         Some("raised")
                                     } else {None},
                                     #[track = "model.changed(WebWindow::pin_headerbar())"]
-                                    optionally_remove_css_class: if !model.pin_headerbar {
+                                    remove_css_class?: if !model.pin_headerbar {
                                         Some("raised")
                                     } else {None},
                                     connect_clicked => WebWindowInput::TogglePinHeaderBar
@@ -364,22 +350,16 @@ impl Component for WebWindow {
 
                     #[name(web_view)]
                     webkit6::WebView {
+                        load_uri: &model.url,
                         set_vexpand: true,
-                        #[track = "model.changed(WebWindow::url())"]
-                        load_uri: model.url.as_str(),
-                        #[track = "model.changed(WebWindow::go_back_now())"]
-                        go_back: (),
-                        #[track = "model.changed(WebWindow::go_forward_now())"]
-                        go_forward: (),
-                        #[track = "model.changed(WebWindow::refresh_now())"]
-                        reload: (),
                         set_background_color: &match_style_with_rgb(relm4::main_adw_application()),
                         connect_load_changed[sender] => move |this_webview, _load_event| {
                             let url = match this_webview.uri() {
                                 Some(url) => url,
                                 None => GString::new()
                             };
-                            sender.input(WebWindowInput::LoadChanged(this_webview.can_go_back(), this_webview.can_go_forward(), url.clone().to_string()));
+                            sender.input(WebWindowInput::NavigationHistoryChanged(this_webview.can_go_back(), this_webview.can_go_forward()));
+                            sender.input(WebWindowInput::UrlChanged(url.to_string()))
                         },
                         connect_title_notify[sender] => move |this_webview| {
                             let title = this_webview.title().map(|title| ToString::to_string(&title));
@@ -390,9 +370,6 @@ impl Component for WebWindow {
                             sender.input(WebWindowInput::TitleChanged(match title.clone() {
                                 Some(text) => text,
                                 None => String::from("")
-                            }, match this_webview.uri() {
-                                Some(url) => url.to_string(),
-                                None => "".to_string()
                             }));
                         },
                         connect_insecure_content_detected[sender] => move |_, _| {
@@ -407,12 +384,15 @@ impl Component for WebWindow {
                             new_webview.into()
 
                         },
+                        // connect_notify: (Some("url"), clone!(@strong sender => move |this_webview, _| {
+                        //     sender.input(WebWindowInput::UrlChanged(match this_webview.uri() {Some(url)=> url.to_string(), None=>"".to_string()}))
+                        // }))
                         // connect_context_menu[sender] => move |_this_webview, context_menu, context| {
                         //     if context.context_is_link() {
                         //         let link = context.link_uri();
                         //         if let Some(link) = link {
                         //             let link_string = link.to_string();
-                        //             context_menu.prepend(&webkit6::ContextMenuItem::from_gaction(peek_action.gio_action(), "Peek", Some(link_string).into()));
+                        //             // context_menu.prepend(&webkit6::ContextMenuItem::from_gaction(peek_action.gio_action(), "Peek", Some(&Variant::from_data::<String, String>(link_string)))); // TODO: DOES NOT WORK
                         //         }
                         //     }
                         //     false
@@ -448,24 +428,22 @@ impl Component for WebWindow {
             .halign(gtk::Align::Fill)
             .build();
         screenshot_flash_box.add_css_class("screenshot-in-progress");
-        let model = WebWindow {
+        let mut model = WebWindow {
             url: init.0.clone(),
             screenshot_flash_box,
             can_go_back: false,
             can_go_forward: false,
-            go_back_now: false,
-            go_forward_now: false,
-            refresh_now: false,
             show_headerbar: false,
             title: init.0,
             in_title_edit_mode: false,
-            title_edit_textbuffer: gtk::EntryBuffer::new(Some("")),
             fullscreen: false,
             can_hide_headerbar: Inhibited::new(),
             pin_headerbar: false,
+            web_view: None,
             tracker: 0,
         };
-
+        let widgets = view_output!();
+        model.set_web_view(Some(widgets.web_view.clone()));
         let fullpage_screenshot_action: RelmAction<FullPageScreenshotAction> = {
             RelmAction::new_stateless(clone!(@strong sender => move |_| {
                 sender.input(WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::FullDocument));
@@ -482,8 +460,6 @@ impl Component for WebWindow {
         webwindow_action_group.add_action(fullpage_screenshot_action);
         // webwindow_action_group.add_action(peek_action);
         webwindow_action_group.register_for_widget(root.clone());
-
-        let widgets = view_output!();
 
         widgets.padlock_image.set_icon_name(
             if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
@@ -512,7 +488,9 @@ impl Component for WebWindow {
             .add_controller(hide_toolbars_event_controller);
 
         // Set settings for the WebView
-        if let Some(web_view_settings) = webkit6::prelude::WebViewExt::settings(&widgets.web_view) {
+        if let Some(web_view_settings) =
+            webkit6::prelude::WebViewExt::settings(&widgets.web_view.clone())
+        {
             web_view_settings.set_media_playback_requires_user_gesture(true);
             web_view_settings.set_enable_back_forward_navigation_gestures(true);
             if PROFILE == "Devel" {
@@ -608,201 +586,196 @@ impl Component for WebWindow {
     ) {
         self.reset();
         let sender_clone = sender.clone();
-        match message {
-            WebWindowInput::Back => self.set_go_back_now(!self.go_back_now),
-            WebWindowInput::Forward => self.set_go_forward_now(!self.go_forward_now),
-            WebWindowInput::Refresh => self.set_refresh_now(!self.refresh_now),
-            WebWindowInput::CopyLink => {
-                let clipboard = widgets.web_view.clipboard();
-                if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(
-                    &gtk::glib::Value::from(if let Some(uri) = widgets.web_view.uri() {
-                        uri.to_string()
-                    } else {
-                        String::from("")
-                    }),
-                ))) {
-                    eprintln!("Could not copy link to clipboard");
+        attempt(|| {
+            match message {
+                WebWindowInput::Back => self.web_view.clone()?.go_back(),
+                WebWindowInput::Forward => self.web_view.clone()?.go_forward(),
+                WebWindowInput::Refresh => self.web_view.clone()?.reload(),
+                WebWindowInput::CopyLink => {
+                    let clipboard = widgets.web_view.clipboard();
+                    if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(
+                        &gtk::glib::Value::from(if let Some(uri) = widgets.web_view.uri() {
+                            uri.to_string()
+                        } else {
+                            String::from("")
+                        }),
+                    ))) {
+                        eprintln!("Could not copy link to clipboard");
+                    }
+                    widgets
+                        .toast_overlay
+                        .add_toast(adw::Toast::new("Copied link to clipboard"));
                 }
-                widgets
+                WebWindowInput::LoadUrl(url) => self.web_view.clone()?.load_uri(&url),
+                WebWindowInput::CreateSmallWebWindow(new_webview) => {
+                    let smallwebwindow_width = widgets.web_window.width() - 100;
+                    let smallwebwindow_height = widgets.web_window.height() - 100;
+                    let smallwebwindow = SmallWebWindow::builder()
+                        .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
+                        .detach();
+                    let small_web_window_widget = smallwebwindow.widgets().small_web_window.clone();
+                    smallwebwindow.model().web_view.connect_title_notify(
+                        clone!(@strong small_web_window_widget => move |this_webview| {
+                            let title = this_webview
+                                .title()
+                                .map(|title| ToString::to_string(&title));
+                            small_web_window_widget
+                                .set_title(title.unwrap_or(String::from("")).as_str());
+                        }),
+                    );
+                    smallwebwindow.model().web_view.connect_close(
+                        clone!(@strong small_web_window_widget => move |this_webview| {
+                            small_web_window_widget.close();
+                        }),
+                    );
+                    small_web_window_widget.present(root);
+                }
+                WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
+                    if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
+                        user_content_filter_store.load(
+                            "adblock",
+                            gtk::gio::Cancellable::NONE,
+                            move |user_content_filter_result| {
+                                if let Ok(user_content_filter) = user_content_filter_result {
+                                    user_content_manager.add_filter(&user_content_filter);
+                                }
+                            },
+                        )
+                    }
+                }
+                WebWindowInput::TitleChanged(title) => {
+                    self.set_title(title.clone());
+                    sender
+                        .output(WebWindowOutput::TitleChanged(title))
+                        .expect("Could not send output WebWindowOutput::TitleChanged");
+                }
+                WebWindowInput::UrlChanged(url) => {
+                    self.set_url(url.clone());
+                    _ = sender.output(WebWindowOutput::UrlChanged(self.url.clone()));
+                }
+                WebWindowInput::EnterTitleEditMode => {
+                    self.can_hide_headerbar.inhibit();
+                    self.set_in_title_edit_mode(true);
+                }
+                WebWindowInput::LeaveTitleEditMode => {
+                    self.can_hide_headerbar.release();
+                    self.set_in_title_edit_mode(false);
+                    let input = widgets.title_edit_entry_buffer.text().to_string();
+                    if input == "" {
+                        return Some(());
+                    }
+                    let url = match process_url(input.clone()) {
+                        Some(url) => url,
+                        None => return Some(()),
+                    };
+                    if url != self.url {
+                        self.set_title(input);
+                        self.web_view.clone()?.load_uri(&url);
+                    }
+                }
+                WebWindowInput::NavigationHistoryChanged(can_go_back, can_go_forward) => {
+                    self.set_can_go_back(can_go_back);
+                    self.set_can_go_forward(can_go_forward);
+                    _ = sender.output(WebWindowOutput::LoadChanged(can_go_back, can_go_forward));
+                }
+                WebWindowInput::InsecureContentDetected => widgets
                     .toast_overlay
-                    .add_toast(adw::Toast::new("Copied link to clipboard"));
-            }
-            WebWindowInput::SetUrl(url) => self.set_url(url),
-            WebWindowInput::CreateSmallWebWindow(new_webview) => {
-                let smallwebwindow_width = widgets.web_window.width() - 100;
-                let smallwebwindow_height = widgets.web_window.height() - 100;
-                let smallwebwindow = SmallWebWindow::builder()
-                    .launch((new_webview, (smallwebwindow_width, smallwebwindow_height)))
-                    .detach();
-                let small_web_window_widget = smallwebwindow.widgets().small_web_window.clone();
-                smallwebwindow.model().web_view.connect_title_notify(
-                    clone!(@strong small_web_window_widget => move |this_webview| {
-                        let title = this_webview
-                            .title()
-                            .map(|title| ToString::to_string(&title));
-                        small_web_window_widget
-                            .set_title(title.unwrap_or(String::from("")).as_str());
-                    }),
-                );
-                smallwebwindow.model().web_view.connect_close(
-                    clone!(@strong small_web_window_widget => move |this_webview| {
-                        small_web_window_widget.close();
-                    }),
-                );
-                small_web_window_widget.present(root);
-            }
-            WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
-                if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
-                    user_content_filter_store.load(
-                        "adblock",
+                    .add_toast(adw::Toast::new("This page is insecure")),
+                WebWindowInput::Screenshot(need_return_main_app, snapshot_region) => {
+                    widgets.web_view.snapshot(
+                        snapshot_region,
+                        webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
                         gtk::gio::Cancellable::NONE,
-                        move |user_content_filter_result| {
-                            if let Ok(user_content_filter) = user_content_filter_result {
-                                user_content_manager.add_filter(&user_content_filter);
+                        clone!(@strong widgets.web_window as web_window, @strong widgets.toast_overlay as toast_overlay => move |snapshot_result| match snapshot_result {
+                            Ok(texture) => {
+                                // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
+                                web_window.present();
+                                // Using async but not threads because WebWindowInput cannot be sent across threads due to one of the variants carrying a WebView
+                                let animation_timing_handle = relm4::spawn_local(clone!(@strong sender => async move {
+                                    tokio::time::sleep(Duration::from_millis(300)).await; // Wait for 300ms for the WebWindow to be in focus
+                                    sender.input(WebWindowInput::BeginScreenshotFlash); // Add the screenshot flash box to the main_overlay of the WebWindow
+                                    tokio::time::sleep(Duration::from_millis(830)).await; // Wait for the animation to finish
+                                    sender.input(WebWindowInput::ScreenshotFlashFinished); // Remove the screenshot flash box
+                                    if need_return_main_app {
+                                        tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
+                                        sender // Return focus back to main app window
+                                            .output(WebWindowOutput::ReturnToMainAppWindow)
+                                            .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
+                                    }
+                                }));
+                                with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
+                                    |mut d| {
+                                        d["Screenshot.png"].replace_with(&texture.save_to_png_bytes())?;
+                                        let toast = adw::Toast::builder()
+                                            .title("Screenshot saved to Pictures → Screenshots")
+                                            .button_label("Open")
+                                            .build();
+                                        let png_document = d["Screenshot.png"].clone();
+                                        let toast_overlay_clone = toast_overlay.clone();
+                                        toast.connect_button_clicked(move |_| {
+                                            match png_document.launch_with_default_app() {
+                                                Ok(_) => {}
+                                                Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
+                                            }
+                                        });
+                                        toast_overlay.add_toast(toast);
+                                        Ok(())
+                                    });
                             }
-                        },
+                            Err(error) => {
+                                eprintln!("Could not save screenshot: {}", error);
+                                toast_overlay
+                                    .add_toast(adw::Toast::new("Failed to take screenshot"))
+                            }
+                        }),
                     )
                 }
-            }
-            WebWindowInput::TitleChanged(title, url) => {
-                self.set_url(url.clone());
-                self.title_edit_textbuffer.set_text(url.clone());
-                self.set_title(title.clone());
-                sender
-                    .output(WebWindowOutput::TitleChanged(title, url))
-                    .expect("Could not send output WebWindowOutput::TitleChanged");
-            }
-            WebWindowInput::EnterTitleEditMode => {
-                self.title_edit_textbuffer.set_text(self.url.clone());
-                self.set_in_title_edit_mode(true);
-            }
-            WebWindowInput::LeaveTitleEditMode => {
-                let input = self.title_edit_textbuffer.text().to_string();
-                self.title_edit_textbuffer.set_text("");
-                self.set_in_title_edit_mode(false);
-                let url = match process_url(input.clone()) {
-                    Some(url) => url,
-                    None => self.url.clone(),
-                };
-                if url != self.url {
-                    self.set_title(input);
-                    self.set_url(url)
+                WebWindowInput::BeginScreenshotFlash => {
+                    widgets.main_overlay.add_overlay(&self.screenshot_flash_box)
                 }
-            }
-            WebWindowInput::LoadChanged(can_go_back, can_go_forward, url) => {
-                self.set_can_go_back(can_go_back);
-                self.set_can_go_forward(can_go_forward);
-                self.set_url(url.clone());
-                self.title_edit_textbuffer.set_text(url.clone());
-                _ = sender.output(WebWindowOutput::LoadChanged(
-                    can_go_back,
-                    can_go_forward,
-                    url,
-                ));
-            }
-            WebWindowInput::InsecureContentDetected => widgets
-                .toast_overlay
-                .add_toast(adw::Toast::new("This page is insecure")),
-            WebWindowInput::Screenshot(need_return_main_app, snapshot_region) => {
-                widgets.web_view.snapshot(
-                    snapshot_region,
-                    webkit6::SnapshotOptions::INCLUDE_SELECTION_HIGHLIGHTING,
-                    gtk::gio::Cancellable::NONE,
-                    clone!(@strong widgets.web_window as web_window, @strong widgets.toast_overlay as toast_overlay => move |snapshot_result| match snapshot_result {
-                        Ok(texture) => {
-                            // Present the WebWindow to show off the beautiful animation that took an afternoon to figure out
-                            web_window.present();
-                            // Using async but not threads because WebWindowInput cannot be sent across threads due to one of the variants carrying a WebView
-                            let animation_timing_handle = relm4::spawn_local(clone!(@strong sender => async move {
-                                tokio::time::sleep(Duration::from_millis(300)).await; // Wait for 300ms for the WebWindow to be in focus
-                                sender.input(WebWindowInput::BeginScreenshotFlash); // Add the screenshot flash box to the main_overlay of the WebWindow
-                                tokio::time::sleep(Duration::from_millis(830)).await; // Wait for the animation to finish
-                                sender.input(WebWindowInput::ScreenshotFlashFinished); // Remove the screenshot flash box
-                                if need_return_main_app {
-                                    tokio::time::sleep(Duration::from_millis(350)).await; // Wait for another 350ms to prevent whiplash
-                                    sender // Return focus back to main app window
-                                        .output(WebWindowOutput::ReturnToMainAppWindow)
-                                        .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow");
-                                }
-                            }));
-                            with(&[Document::at(User(Pictures(&["Screenshots"])), "Screenshot.png", Create::AutoRenameIfExists)],
-                                |mut d| {
-                                    d["Screenshot.png"].replace_with(&texture.save_to_png_bytes())?;
-                                    let toast = adw::Toast::builder()
-                                        .title("Screenshot saved to Pictures → Screenshots")
-                                        .button_label("Open")
-                                        .build();
-                                    let png_document = d["Screenshot.png"].clone();
-                                    let toast_overlay_clone = toast_overlay.clone();
-                                    toast.connect_button_clicked(move |_| {
-                                        match png_document.launch_with_default_app() {
-                                            Ok(_) => {}
-                                            Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
-                                        }
-                                    });
-                                    toast_overlay.add_toast(toast);
-                                    Ok(())
-                                });
-                        }
-                        Err(error) => {
-                            eprintln!("Could not save screenshot: {}", error);
-                            toast_overlay
-                                .add_toast(adw::Toast::new("Failed to take screenshot"))
-                        }
-                    }),
-                )
-            }
-            WebWindowInput::BeginScreenshotFlash => {
-                widgets.main_overlay.add_overlay(&self.screenshot_flash_box)
-            }
-            WebWindowInput::ScreenshotFlashFinished => widgets
-                .main_overlay
-                .remove_overlay(&self.screenshot_flash_box),
-            WebWindowInput::ReturnToMainAppWindow => sender
-                .output(WebWindowOutput::ReturnToMainAppWindow)
-                .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
-            WebWindowInput::ShowHeaderBar => self.set_show_headerbar(true),
-            WebWindowInput::BeginHideHeaderBarTimeout => {
-                relm4::spawn_local(clone!(@strong sender => async move {
-                    _ = tokio::time::sleep(Duration::from_millis(100));
-                    sender.input(WebWindowInput::HideHeaderBar);
-                }));
-            }
-            WebWindowInput::HideHeaderBar => {
-                if self.can_hide_headerbar.is_clear() {
-                    self.set_show_headerbar(false);
+                WebWindowInput::ScreenshotFlashFinished => widgets
+                    .main_overlay
+                    .remove_overlay(&self.screenshot_flash_box),
+                WebWindowInput::ReturnToMainAppWindow => sender
+                    .output(WebWindowOutput::ReturnToMainAppWindow)
+                    .expect("Could not send output WebWindowOutput::ReturnToMainAppWindow"),
+                WebWindowInput::ShowHeaderBar => self.set_show_headerbar(true),
+                WebWindowInput::BeginHideHeaderBarTimeout => {
+                    relm4::spawn_local(clone!(@strong sender => async move {
+                        _ = tokio::time::sleep(Duration::from_millis(100));
+                        sender.input(WebWindowInput::HideHeaderBar);
+                    }));
                 }
-            }
-            WebWindowInput::ToggleFullscreen => {
-                if widgets.web_window.is_fullscreen() {
-                    widgets.web_window.unfullscreen();
-                    self.set_fullscreen(false);
-                } else {
-                    widgets.web_window.fullscreen();
-                    self.set_fullscreen(true);
+                WebWindowInput::HideHeaderBar => {
+                    if self.can_hide_headerbar.is_clear() {
+                        self.set_show_headerbar(false);
+                    }
                 }
-            }
-            WebWindowInput::InhibitHideHeaderBar => {
-                self.can_hide_headerbar.inhibit();
-                self.set_can_hide_headerbar(self.can_hide_headerbar);
-            }
-            WebWindowInput::ReleaseHideHeaderBar => {
-                self.can_hide_headerbar.release();
-                self.set_can_hide_headerbar(self.can_hide_headerbar);
-            }
-            WebWindowInput::TogglePinHeaderBar => {
-                if self.pin_headerbar {
-                    self.set_pin_headerbar(false);
-                    sender.input(WebWindowInput::ReleaseHideHeaderBar);
-                } else {
-                    self.set_pin_headerbar(true);
-                    sender.input(WebWindowInput::InhibitHideHeaderBar);
+                WebWindowInput::ToggleFullscreen => {
+                    if widgets.web_window.is_fullscreen() {
+                        widgets.web_window.unfullscreen();
+                        self.set_fullscreen(false);
+                    } else {
+                        widgets.web_window.fullscreen();
+                        self.set_fullscreen(true);
+                    }
                 }
-            }
-            WebWindowInput::Peek(url) => {
-                println!("{url}");
-            }
-        }
+                WebWindowInput::InhibitHideHeaderBar => self.can_hide_headerbar.inhibit(),
+                WebWindowInput::ReleaseHideHeaderBar => self.can_hide_headerbar.release(),
+                WebWindowInput::TogglePinHeaderBar => {
+                    self.set_pin_headerbar(!self.pin_headerbar);
+                    if self.pin_headerbar {
+                        sender.input(WebWindowInput::InhibitHideHeaderBar);
+                    } else {
+                        sender.input(WebWindowInput::ReleaseHideHeaderBar);
+                    }
+                }
+                WebWindowInput::Peek(url) => {
+                    println!("{url}");
+                }
+            };
         self.update_view(widgets, sender_clone);
+        Some(())
+    }).catch(|error| eprintln!("{error}"));
     }
 }
