@@ -1987,7 +1987,7 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "once_cell",
- "relm4-macros",
+ "relm4-macros 0.8.1",
  "tokio",
  "tracing",
 ]
@@ -2020,6 +2020,17 @@ name = "relm4-macros"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0774e846889823aa5766f5b62cface3189a5b36280e65b2faaa6df0319da1726"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.66",
+]
+
+[[package]]
+name = "relm4-macros"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc5885640821d60062497737dd42fd04248d13c7ecccee620caaa4b210fe9905"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2334,7 +2345,7 @@ dependencies = [
  "relm4",
  "relm4-components",
  "relm4-icons",
- "relm4-macros",
+ "relm4-macros 0.9.0",
  "reqwest",
  "tokio",
  "tracing",
