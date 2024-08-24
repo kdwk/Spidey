@@ -1,5 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+use core::fmt::Display;
+use documents::prelude::*;
 use std::{
     error::Error,
     process::Command,
@@ -8,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use adw::{Toast, ToastOverlay};
 use relm4::{
     actions::{AccelsPlus, ActionName, RelmAction, RelmActionGroup},
     adw::prelude::*,
@@ -17,6 +20,7 @@ use relm4::{
         prelude::{WidgetExt, *},
         EventControllerMotion,
     },
+    menu,
     prelude::*,
 };
 use tracing_subscriber::fmt::format::Full;
@@ -35,17 +39,10 @@ use crate::{
     config::{APP_ID, PROFILE},
 };
 use crate::{
-    document::{
-        with, Create, Document, FileSystemEntity,
-        Folder::{self, Project, User},
-        LinesBufReaderFileExt, Map, Mode,
-        Project::{Config, Data},
-        ResultDocumentBoxErrorExt,
-        User::{Documents, Downloads, Pictures},
-    },
     recipe::{Discard, Log, Pass, Pipe, Recipe, Runnable, Step},
     whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
+use documents::prelude::*;
 
 fn match_style_with_rgb(main_app: adw::Application) -> RGBA {
     match main_app.style_manager().color_scheme() {
@@ -101,6 +98,7 @@ pub struct WebWindow {
     pin_headerbar: bool,
     show_headerbar: bool,
     web_view: Option<WebView>,
+    toast_overlay: Option<ToastOverlay>,
 }
 
 #[derive(Debug)]
@@ -130,6 +128,7 @@ pub enum WebWindowInput {
     InhibitHideHeaderBar,
     ReleaseHideHeaderBar,
     Peek(String),
+    ShowToast(String),
 }
 
 #[derive(Debug)]
@@ -236,7 +235,7 @@ impl Component for WebWindow {
                                         #[name(title_edit_entry)]
                                         gtk::Entry {
                                             set_margin_start: 24,
-                                            set_width_request: 350,
+                                            // set_width_request: 350,
                                             #[track = "model.changed(WebWindow::in_title_edit_mode())"]
                                             grab_focus: (),
                                             #[name(title_edit_entry_buffer)]
@@ -259,7 +258,7 @@ impl Component for WebWindow {
                                     } else {
                                         gtk::Button {
                                             set_margin_start: 24,
-                                            set_width_request: 350,
+                                            // set_width_request: 350,
                                             set_can_shrink: true,
                                             set_tooltip_text: Some("Click to enter link or search"),
 
@@ -270,7 +269,7 @@ impl Component for WebWindow {
                                                 #[name(padlock_image)]
                                                 gtk::Image {
                                                     #[track = "model.changed(WebWindow::url())"]
-                                                    set_from_icon_name: if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
+                                                    set_icon_name: if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
                                                         Some("padlock2")
                                                     } else if model.url.starts_with("http://") {
                                                         Some("padlock2-open")
@@ -397,7 +396,7 @@ impl Component for WebWindow {
                         //     }
                         //     false
                         // }
-                    },
+                    }
                 }
             },
 
@@ -440,10 +439,12 @@ impl Component for WebWindow {
             can_hide_headerbar: Inhibited::new(),
             pin_headerbar: false,
             web_view: None,
+            toast_overlay: None,
             tracker: 0,
         };
         let widgets = view_output!();
         model.set_web_view(Some(widgets.web_view.clone()));
+        model.set_toast_overlay(Some(widgets.toast_overlay.clone()));
         let fullpage_screenshot_action: RelmAction<FullPageScreenshotAction> = {
             RelmAction::new_stateless(clone!(@strong sender => move |_| {
                 sender.input(WebWindowInput::Screenshot(false, webkit6::SnapshotRegion::FullDocument));
@@ -523,7 +524,7 @@ impl Component for WebWindow {
                     this_download_object.set_destination(Document::at(User(Downloads(&[])), suggested_filename, Create::No).suggest_rename().as_str());
                     true
                 });
-                download_object.connect_created_destination(clone!(@strong toast_overlay, @strong did_download_fail => move |this_download_object, destination| {
+                download_object.connect_created_destination(clone!(@strong toast_overlay, @strong did_download_fail, @strong sender => move |this_download_object, destination| {
                     let destination_string = destination.to_string();
                     this_download_object.connect_finished(clone!(@strong toast_overlay, @strong did_download_fail, @strong destination_string => move |this_download_object| {
                         if (*did_download_fail).load(std::sync::atomic::Ordering::Relaxed) {return;}
@@ -532,12 +533,11 @@ impl Component for WebWindow {
                         let toast_overlay_clone = toast_overlay.clone();
                         let destination_string_clone = destination_string.clone();
                         toast.connect_button_clicked(move |_| {
-                            match Document::from_path(destination_string_clone.clone(), "download_file", Create::No) {
-                                Ok(document) => if let Err(error) = document.launch_with_default_app() {
-                                    toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()));
-                                }
-                                Err(error) => toast_overlay_clone.add_toast(adw::Toast::new(format!("{}", error).as_str()))
-                            };
+                            attempt(|| {
+                                let document = Document::at_path(destination_string_clone.clone(), "download_file", Create::No)?;
+                                document.launch_with_default_app()?;
+                                Ok(())
+                            }).catch(|error| toast_overlay_clone.add_toast(adw::Toast::new(format!("{error}").as_str())));
                         });
                         toast_overlay.add_toast(toast);
                     }));
@@ -554,21 +554,22 @@ impl Component for WebWindow {
             session.set_itp_enabled(true);
 
             // Handle persistent cookies
-            if let Some(cookie_manager) = session.cookie_manager() {
-                with(
-                    &[Document::at(
-                        Project(Data(&[]).with_id("com", "github.kdwk", "Spidey")),
-                        "cookies.sqlite",
-                        Create::No,
-                    )],
-                    |d| {
-                        cookie_manager.set_persistent_storage(
-                            d["cookies.sqlite"].path().as_str(),
+            with(
+                &[Document::at(
+                    Project(Data(&[]).with_id("com", "github.kdwk", "Spidey")),
+                    "cookies.sqlite",
+                    Create::No,
+                )],
+                |d| {
+                    attempt(|| {
+                        session.cookie_manager()?.set_persistent_storage(
+                            &d["cookies.sqlite"].path(),
                             webkit6::CookiePersistentStorage::Sqlite,
                         );
-                    },
-                );
-            }
+                        Some(())
+                    })
+                },
+            );
         }
 
         ComponentParts {
@@ -593,18 +594,17 @@ impl Component for WebWindow {
                 WebWindowInput::Refresh => self.web_view.clone()?.reload(),
                 WebWindowInput::CopyLink => {
                     let clipboard = widgets.web_view.clipboard();
-                    if let Err(_) = clipboard.set_content(Some(&ContentProvider::for_value(
-                        &gtk::glib::Value::from(if let Some(uri) = widgets.web_view.uri() {
-                            uri.to_string()
-                        } else {
-                            String::from("")
-                        }),
-                    ))) {
-                        eprintln!("Could not copy link to clipboard");
-                    }
-                    widgets
-                        .toast_overlay
-                        .add_toast(adw::Toast::new("Copied link to clipboard"));
+                    attempt(|| {
+                        clipboard.set_content(Some(&ContentProvider::for_value(
+                            &gtk::glib::Value::from(if let Some(uri) = widgets.web_view.uri() {
+                                uri.to_string()
+                            } else {
+                                String::from("")
+                            }),
+                        )))?;
+                        sender.input(WebWindowInput::ShowToast("Copied link to clipboard".to_string()));
+                        Ok(())
+                    }).catch(|_| eprintln!("Could not copy link to clipboard"));
                 }
                 WebWindowInput::LoadUrl(url) => self.web_view.clone()?.load_uri(&url),
                 WebWindowInput::CreateSmallWebWindow(new_webview) => {
@@ -628,7 +628,7 @@ impl Component for WebWindow {
                             small_web_window_widget.close();
                         }),
                     );
-                    small_web_window_widget.present(root);
+                    small_web_window_widget.present(Some(root));
                 }
                 WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
                     if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
@@ -651,7 +651,7 @@ impl Component for WebWindow {
                 }
                 WebWindowInput::UrlChanged(url) => {
                     self.set_url(url.clone());
-                    _ = sender.output(WebWindowOutput::UrlChanged(self.url.clone()));
+                    sender.output(WebWindowOutput::UrlChanged(self.url.clone())).discard();
                 }
                 WebWindowInput::EnterTitleEditMode => {
                     self.can_hide_headerbar.inhibit();
@@ -773,6 +773,7 @@ impl Component for WebWindow {
                 WebWindowInput::Peek(url) => {
                     println!("{url}");
                 }
+                WebWindowInput::ShowToast(message) => self.toast_overlay.clone()?.add_toast(Toast::new(&message))
             };
         self.update_view(widgets, sender_clone);
         Some(())

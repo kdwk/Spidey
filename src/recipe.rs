@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::{Debug, Display},
     sync::Arc,
 };
@@ -205,6 +206,17 @@ where
 {
     fn log(self) -> Self {
         println!("{self:?}");
+        self
+    }
+}
+
+pub trait ELog {
+    fn elog(self) -> Self;
+}
+
+impl<E: Error> ELog for E {
+    fn elog(self) -> Self {
+        eprintln!("{self}");
         self
     }
 }

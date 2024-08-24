@@ -1,7 +1,6 @@
 #[rustfmt::skip]
 mod config;
 mod app;
-mod document;
 mod recipe;
 mod setup;
 mod smallwebwindow;
