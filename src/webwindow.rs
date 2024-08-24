@@ -41,6 +41,7 @@ use crate::{
     recipe::{Discard, Log, Pass, Pipe, Recipe, Runnable, Step},
     whoops::{attempt, Catch, IntoWhoops, Whoops},
 };
+use documents::prelude::*;
 
 fn match_style_with_rgb(main_app: adw::Application) -> RGBA {
     match main_app.style_manager().color_scheme() {
@@ -345,7 +346,6 @@ impl Component for WebWindow {
                         set_height_request: 10,
                     },
 
-                    gtk::GraphicsOffload {
                     #[name(web_view)]
                     webkit6::WebView {
                         load_uri: &model.url,
@@ -395,7 +395,6 @@ impl Component for WebWindow {
                         //     }
                         //     false
                         // }
-                    },
                     }
                 }
             },
@@ -534,7 +533,7 @@ impl Component for WebWindow {
                         let destination_string_clone = destination_string.clone();
                         toast.connect_button_clicked(move |_| {
                             attempt(|| {
-                                let document = Document::from_path(destination_string_clone.clone(), "download_file", Create::No)?;
+                                let document = Document::at_path(destination_string_clone.clone(), "download_file", Create::No)?;
                                 document.launch_with_default_app()?;
                                 Ok(())
                             }).catch(|error| toast_overlay_clone.add_toast(adw::Toast::new(format!("{error}").as_str())));
