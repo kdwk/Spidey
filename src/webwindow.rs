@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use core::fmt::Display;
+use documents::prelude::*;
 use std::{
     error::Error,
     process::Command,
@@ -628,7 +629,7 @@ impl Component for WebWindow {
                             small_web_window_widget.close();
                         }),
                     );
-                    small_web_window_widget.present(root);
+                    small_web_window_widget.present(Some(root));
                 }
                 WebWindowInput::RetroactivelyLoadUserContentFilter(user_content_filter_store) => {
                     if let Some(user_content_manager) = widgets.web_view.user_content_manager() {
