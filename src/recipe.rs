@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::{Debug, Display},
     sync::Arc,
 };

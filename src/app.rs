@@ -263,7 +263,7 @@ impl Component for App {
                     .issue_url("https://github.com/kdwk/Spidey/issues")
                     .copyright("© 2024 Kendrew Leung")
                     .build()
-                    .present(root);
+                    .present(Some(root));
             }
 
             AppInput::SetUpUserContentFilterStore => {

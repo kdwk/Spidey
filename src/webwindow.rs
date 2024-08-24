@@ -269,7 +269,7 @@ impl Component for WebWindow {
                                                 #[name(padlock_image)]
                                                 gtk::Image {
                                                     #[track = "model.changed(WebWindow::url())"]
-                                                    set_from_icon_name: if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
+                                                    set_icon_name: if model.url.starts_with("https://") || model.url.starts_with("webkit://") {
                                                         Some("padlock2")
                                                     } else if model.url.starts_with("http://") {
                                                         Some("padlock2-open")
