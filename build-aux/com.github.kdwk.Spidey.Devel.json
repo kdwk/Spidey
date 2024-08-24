@@ -21,7 +21,7 @@
         "--env=RUST_LOG=spidey=debug",
         "--env=G_MESSAGES_DEBUG=none",
         "--env=RUST_BACKTRACE=1",
-        "--env=GDK_DEBUG=gl-prefer-gl"
+        "--env=GSK_RENDERER=ngl"
     ],
     "build-options" : {
         "append-path" : "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm16/bin",

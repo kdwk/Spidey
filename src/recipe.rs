@@ -1,4 +1,4 @@
-use std::{fmt::Debug, slice::Iter, sync::Arc};
+use std::{error::Error, fmt::Debug, sync::Arc};
 
 #[derive(Clone)]
 pub struct Step<'a, Input, Output>(String, Arc<dyn Runnable<Input, Output> + 'a>);
@@ -168,6 +168,17 @@ where
 {
     fn log(self) -> Self {
         println!("{self:?}");
+        self
+    }
+}
+
+pub trait ELog {
+    fn elog(self) -> Self;
+}
+
+impl<E: Error> ELog for E {
+    fn elog(self) -> Self {
+        eprintln!("{self}");
         self
     }
 }

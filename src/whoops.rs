@@ -27,9 +27,12 @@ impl IntoWhoops for () {
     }
 }
 
-impl IntoWhoops for Whoops {
+impl<T> IntoWhoops for Result<T, Box<dyn Error>> {
     fn into_whoops(self) -> Whoops {
-        self
+        match self {
+            Ok(_) => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -42,14 +45,6 @@ impl<T> IntoWhoops for Option<T> {
     }
 }
 
-// pub fn attempt_fn<Closure, Arg, Return>(closure: Closure) -> Closure
-// where
-//     Closure: Fn(Arg) -> Return,
-//     Return: IntoWhoops,
-// {
-//     closure
-// }
-
 pub fn attempt<Closure, Return>(closure: Closure) -> Whoops
 where
     Closure: FnOnce() -> Return,
@@ -59,11 +54,11 @@ where
 }
 
 pub trait Catch {
-    fn catch<HandleErrorClosure: Fn(Box<dyn Error>)>(self, closure: HandleErrorClosure);
+    fn catch(self, closure: impl FnOnce(Box<dyn Error>));
 }
 
 impl Catch for Whoops {
-    fn catch<HandleErrorClosure: Fn(Box<dyn Error>)>(self, closure: HandleErrorClosure) {
+    fn catch(self, closure: impl FnOnce(Box<dyn Error>)) {
         match self {
             Ok(_) => {}
             Err(error) => closure(error),
