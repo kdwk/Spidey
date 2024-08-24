@@ -27,9 +27,12 @@ impl IntoWhoops for () {
     }
 }
 
-impl IntoWhoops for Whoops {
+impl<T> IntoWhoops for Result<T, Box<dyn Error>> {
     fn into_whoops(self) -> Whoops {
-        self
+        match self {
+            Ok(_) => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 }
 
