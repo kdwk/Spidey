@@ -465,9 +465,9 @@ dependencies = [
 
 [[package]]
 name = "documents"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12a61a5194c54fe376fde5d38c241359d5bae1b01d35f9eb3ba21bd9c918af23"
+checksum = "8cb75b641f715ee6d623986d7423d63223b39459431a0abb0c79d8ad5911b93c"
 dependencies = [
  "directories",
  "extend",
